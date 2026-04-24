@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>APOCABUTT: Defense of the Throne</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      background: #0d0500;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+      touch-action: none;
+    }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+'use strict';
+
+// ── CANVAS SETUP ──────────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = 390, H = 844;
+let scale = 1;
+function resize() {
+  scale = Math.min(window.innerWidth / W, window.innerHeight / H);
+  canvas.width = W;
+  canvas.height = H;
+  canvas.style.width  = (W * scale) + 'px';
+  canvas.style.height = (H * scale) + 'px';
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── CONSTANTS ─────────────────────────────────────────────────────────────────
+const TOWER_X  = W / 2;
+const TOWER_Y  = Math.round(H * 0.70);
+const PIVOT_Y  = TOWER_Y - 22;   // cannon pivot
+const BARREL_LEN = 42;
+const MAX_PRESSURE = 100;
+const HUD_TOP_H    = 80;
+const HUD_BOT_H    = 72;
+
+// ── DEFINITIONS ───────────────────────────────────────────────────────────────
+const EnemyDefs = {
+  worm:   { maxHp: 30,  speed: 60,  r: 13, color: '#8B4513', rim: '#5D2E0C', reward: 5,  pDmg: 8  },
+  maggot: { maxHp: 10,  speed: 140, r: 9,  color: '#D4A017', rim: '#8B6914', reward: 3,  pDmg: 6  },
+  golem:  { maxHp: 120, speed: 30,  r: 24, color: '#3a1200', rim: '#1a0800', reward: 30, pDmg: 20 },
+};
+
+const WaveDefs = [
+  [{ t:'worm',   n:6,  iv:1.2 }],
+  [{ t:'worm',   n:5,  iv:1.0 }, { t:'maggot', n:8,  iv:0.65 }],
+  [{ t:'maggot', n:12, iv:0.55 }, { t:'golem',  n:1,  iv:4.0  }],
+  [{ t:'worm',   n:8,  iv:0.9  }, { t:'maggot', n:12, iv:0.5  }, { t:'golem', n:2, iv:3.5 }],
+  [{ t:'golem',  n:3,  iv:2.5  }, { t:'maggot', n:20, iv:0.38 }],
+];
+
+const Modes = [
+  { name:'SLUDGE', em:'💩', dmg:15, rate:1.3,  spd:320, splash:0,  pr:6,  clr:'#8B4513' },
+  { name:'RAPID',  em:'💨', dmg:6,  rate:3.8,  spd:520, splash:0,  pr:4,  clr:'#c8a46e' },
+  { name:'BLAST',  em:'💥', dmg:55, rate:0.38, spd:230, splash:70, pr:10, clr:'#8B0000' },
+];
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let gstate = 'menu';
+let enemies, projs, parts;
+let pressure, gold, score, waveIdx;
+let modeIdx, fireCd;
+let aimAngle, aimActive;
+let shakeT, shakeI;
+let queues;
+let clearTimer;
+let lastTs = 0;
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+const rnd  = (lo, hi) => lo + Math.random() * (hi - lo);
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const dist  = (ax, ay, bx, by) => Math.hypot(bx-ax, by-ay);
+const lerp  = (a, b, t) => a + (b-a)*t;
+
+function rRect(x, y, w, h, r, fill, stroke, lw=2) {
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
+  if (fill)   { ctx.fillStyle   = fill;   ctx.fill(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); }
+}
+
+// ── PARTICLES ─────────────────────────────────────────────────────────────────
+function burst(x, y, clr, n, spd, sz) {
+  for (let i = 0; i < n; i++) {
+    const a = rnd(0, Math.PI * 2);
+    const s = rnd(spd * 0.4, spd);
+    parts.push({ x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s,
+      r: rnd(sz*0.5, sz), clr, life: 1, dec: rnd(1.8, 3.2) });
+  }
+}
+
+function splash(x, y, splashR) {
+  burst(x, y, '#8B4513', 14, 190, 7);
+  burst(x, y, '#c8a46e',  8, 110, 4);
+  parts.push({ x, y, vx:0, vy:0, r: splashR, clr:'rgba(160,70,0,0.4)',
+    life:1, dec:6, ring:true });
+}
+
+function shake(intensity, dur) {
+  shakeI = Math.max(shakeI, intensity);
+  shakeT = Math.max(shakeT, dur);
+}
+
+// ── WAVE MANAGEMENT ───────────────────────────────────────────────────────────
+function startWave(idx) {
+  waveIdx = idx;
+  clearTimer = 0;
+  const def = WaveDefs[Math.min(idx, WaveDefs.length-1)];
+  const bonus = idx >= WaveDefs.length ? 1 + (idx - WaveDefs.length + 1) * 0.35 : 1;
+  queues = def.map(g => ({
+    t: g.t,
+    rem: Math.round(g.n * bonus),
+    iv: g.iv / Math.max(1, bonus * 0.7),
+    timer: 0,
+  }));
+}
+
+// ── SHOOT ─────────────────────────────────────────────────────────────────────
+function shoot(tx, ty) {
+  const mode = Modes[modeIdx];
+  const dx = tx - TOWER_X, dy = ty - PIVOT_Y;
+  const d = Math.hypot(dx, dy) || 1;
+  const a = Math.atan2(dy, dx);
+  projs.push({
+    x: TOWER_X + Math.cos(a) * BARREL_LEN,
+    y: PIVOT_Y  + Math.sin(a) * BARREL_LEN,
+    vx: (dx/d)*mode.spd, vy: (dy/d)*mode.spd,
+    dmg: mode.dmg, splash: mode.splash,
+    r: mode.pr, clr: mode.clr, alive: true,
+  });
+}
+
+function bestTarget() {
+  if (!enemies.length) return null;
+  if (aimActive) {
+    const adx = Math.cos(aimAngle), ady = Math.sin(aimAngle);
+    let best = null, bestS = -Infinity;
+    for (const e of enemies) {
+      const dx = e.x-TOWER_X, dy = e.y-PIVOT_Y;
+      const d = Math.hypot(dx, dy) || 1;
+      const s = (dx/d)*adx + (dy/d)*ady;
+      if (s > bestS) { bestS = s; best = e; }
+    }
+    return best;
+  }
+  let nearest = null, nd = Infinity;
+  for (const e of enemies) {
+    const d = dist(TOWER_X, PIVOT_Y, e.x, e.y);
+    if (d < nd) { nd = d; nearest = e; }
+  }
+  return nearest;
+}
+
+// ── UPDATE ────────────────────────────────────────────────────────────────────
+function update(dt) {
+  if (gstate !== 'playing') return;
+
+  fireCd = Math.max(0, fireCd - dt);
+  if (shakeT > 0) { shakeT -= dt; if (shakeT <= 0) shakeI = 0; }
+
+  // Spawn from queues
+  for (const q of queues) {
+    if (q.rem <= 0) continue;
+    q.timer += dt;
+    while (q.timer >= q.iv && q.rem > 0) {
+      q.timer -= q.iv;
+      q.rem--;
+      const d = EnemyDefs[q.t];
+      enemies.push({
+        t: q.t, x: rnd(30, W-30), y: rnd(-30, -10),
+        hp: d.maxHp, maxHp: d.maxHp,
+        spd: d.speed * rnd(0.85, 1.15),
+        r: d.r, clr: d.color, rim: d.rim,
+        reward: d.reward, pDmg: d.pDmg,
+        wb: rnd(0, Math.PI*2), wbs: rnd(2,4), dead: false,
+      });
+    }
+  }
+
+  // Update enemies
+  for (const e of enemies) {
+    if (e.dead) continue;
+    e.wb += e.wbs * dt;
+    const dx = TOWER_X - e.x, dy = TOWER_Y - e.y;
+    const d = Math.hypot(dx, dy) || 1;
+    e.x += (dx/d) * e.spd * dt;
+    e.y += (dy/d) * e.spd * dt;
+    if (d < e.r + 28) {
+      pressure = clamp(pressure + e.pDmg, 0, MAX_PRESSURE);
+      burst(e.x, e.y, e.clr, 8, 160, 8);
+      burst(TOWER_X, TOWER_Y, '#ff3300', 5, 200, 6);
+      shake(e.t === 'golem' ? 14 : 7, 0.3);
+      e.dead = true;
+      if (pressure >= MAX_PRESSURE) { gstate = 'game_over'; return; }
+    }
+  }
+  enemies = enemies.filter(e => !e.dead);
+
+  // Auto-fire
+  const tgt = bestTarget();
+  if (tgt) {
+    const ta = Math.atan2(tgt.y - PIVOT_Y, tgt.x - TOWER_X);
+    aimAngle = lerp(aimAngle, ta, 0.2);
+    if (fireCd <= 0) {
+      fireCd = 1 / Modes[modeIdx].rate;
+      shoot(tgt.x, tgt.y);
+    }
+  }
+
+  // Update projectiles
+  for (const p of projs) {
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    if (p.x < -60 || p.x > W+60 || p.y < -120 || p.y > H+60) { p.alive = false; continue; }
+    for (const e of enemies) {
+      if (e.dead) continue;
+      if (dist(p.x, p.y, e.x, e.y) < p.r + e.r) {
+        e.hp -= p.dmg;
+        burst(e.x, e.y, e.clr, 5, 130, 5);
+        if (p.splash > 0) {
+          splash(p.x, p.y, p.splash);
+          shake(8, 0.25);
+          for (const e2 of enemies) {
+            if (!e2.dead && e2 !== e && dist(p.x, p.y, e2.x, e2.y) < p.splash)
+              e2.hp -= p.dmg * 0.6;
+          }
+        }
+        p.alive = false;
+        if (e.hp <= 0) {
+          e.dead = true;
+          gold  += e.reward;
+          score += e.reward;
+          burst(e.x, e.y, e.clr,   12, 180, 8);
+          burst(e.x, e.y, '#ffd700', 5, 140, 4);
+        }
+        break;
+      }
+    }
+  }
+  projs   = projs.filter(p => p.alive);
+  enemies = enemies.filter(e => !e.dead);
+
+  // Particles
+  for (const p of parts) {
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.vx *= 0.9; p.vy *= 0.9;
+    p.life -= p.dec * dt;
+  }
+  parts = parts.filter(p => p.life > 0);
+
+  // Wave clear?
+  const allEmpty = queues.every(q => q.rem <= 0);
+  if (allEmpty && enemies.length === 0) {
+    gstate = 'wave_clear';
+    clearTimer = 2.8;
+  }
+}
+
+// ── DRAW ──────────────────────────────────────────────────────────────────────
+function drawBg() {
+  ctx.fillStyle = '#1a0800';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = '#2a1000';
+  ctx.lineWidth = 0.5;
+  const gs = 44;
+  for (let x = 0; x <= W; x += gs) {
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
+  }
+  for (let y = 0; y <= H; y += gs) {
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+  }
+  // Glow under throne
+  const gr = ctx.createRadialGradient(TOWER_X, TOWER_Y, 20, TOWER_X, TOWER_Y, 260);
+  gr.addColorStop(0, 'rgba(90,50,0,0.14)');
+  gr.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = gr;
+  ctx.fillRect(0, 0, W, H);
+  // Spawn arrows
+  ctx.strokeStyle = 'rgba(180,80,0,0.12)';
+  ctx.lineWidth = 1;
+  for (let x = 40; x < W; x += 70) {
+    ctx.beginPath();
+    ctx.moveTo(x,8); ctx.lineTo(x,28);
+    ctx.moveTo(x-5,22); ctx.lineTo(x,28); ctx.lineTo(x+5,22);
+    ctx.stroke();
+  }
+}
+
+function drawTower() {
+  const tx = TOWER_X, ty = TOWER_Y;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath();
+  ctx.ellipse(tx, ty+18, 54, 14, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Base slab
+  rRect(tx-34, ty-4, 68, 22, 4, '#3d1f00', null);
+
+  // Throne back (tall)
+  rRect(tx-30, ty-80, 60, 42, 8, '#7a5810', null);
+  rRect(tx-28, ty-78, 56, 40, 6, '#9B7820', null);
+
+  // Crown spikes
+  ctx.fillStyle = '#d4a414';
+  const spikes = [-18, -9, 0, 9, 18];
+  for (const sx of spikes) {
+    ctx.beginPath();
+    ctx.moveTo(tx+sx,    ty-80);
+    ctx.lineTo(tx+sx-5,  ty-100 - (Math.abs(sx) < 5 ? 8 : 0));
+    ctx.lineTo(tx+sx+5,  ty-80);
+    ctx.fill();
+  }
+
+  // Crown jewels
+  ctx.fillStyle = '#ff2200';
+  ctx.beginPath(); ctx.arc(tx, ty-95, 4, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#00aaff';
+  ctx.beginPath(); ctx.arc(tx-14, ty-88, 3, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(tx+14, ty-88, 3, 0, Math.PI*2); ctx.fill();
+
+  // Throne body
+  rRect(tx-30, ty-44, 60, 58, 5, '#6B4C11', null);
+  // Armrests
+  rRect(tx-36, ty-32, 10, 36, 3, '#5a3a08', '#3d2405', 1.5);
+  rRect(tx+26, ty-32, 10, 36, 3, '#5a3a08', '#3d2405', 1.5);
+  // Cushion
+  rRect(tx-24, ty-12, 48, 24, 5, '#8B0000', '#cc0000', 1.5);
+
+  // Pressure glow
+  if (pressure > 50) {
+    const alpha = ((pressure - 50) / 50) * 0.35;
+    ctx.fillStyle = `rgba(255,0,0,${alpha})`;
+    ctx.beginPath();
+    ctx.ellipse(tx, ty-30, 60 + pressure*0.4, 60 + pressure*0.4, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // Cannon barrel
+  ctx.save();
+  ctx.translate(TOWER_X, PIVOT_Y);
+  ctx.rotate(aimAngle);
+
+  // Barrel shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  rRect(1, 3, BARREL_LEN, 11, 3, 'rgba(0,0,0,0.3)', null);
+
+  // Barrel body
+  rRect(0, -5, BARREL_LEN, 11, 3, '#2a1200', '#1a0800', 1.5);
+
+  // Muzzle ring
+  ctx.fillStyle = '#4a2800';
+  ctx.beginPath();
+  ctx.arc(BARREL_LEN, 0, 7, 0, Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle = '#6a3800';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Muzzle flash on fire
+  if (fireCd > 0 && fireCd > (1/Modes[modeIdx].rate) * 0.65) {
+    ctx.globalAlpha = fireCd * 3;
+    ctx.fillStyle = '#ff8800';
+    ctx.beginPath();
+    ctx.arc(BARREL_LEN, 0, 12, 0, Math.PI*2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.restore();
+}
+
+function drawEnemy(e) {
+  const wx = Math.sin(e.wb) * 2.2;
+  const wy = Math.cos(e.wb * 0.7) * 1.5;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.beginPath();
+  ctx.ellipse(e.x+wx, e.y+e.r, e.r*0.85, e.r*0.28, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Body
+  ctx.fillStyle   = e.clr;
+  ctx.strokeStyle = e.rim;
+  ctx.lineWidth   = 2.5;
+  ctx.beginPath();
+  ctx.arc(e.x+wx, e.y+wy, e.r, 0, Math.PI*2);
+  ctx.fill();
+  ctx.stroke();
+
+  // Highlight
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  ctx.beginPath();
+  ctx.arc(e.x+wx-e.r*0.25, e.y+wy-e.r*0.3, e.r*0.45, 0, Math.PI*2);
+  ctx.fill();
+
+  // Eyes
+  const ew = e.r*0.22, eo = e.r*0.3;
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(e.x+wx-eo, e.y+wy-eo*0.5, ew, 0, Math.PI*2);
+  ctx.arc(e.x+wx+eo, e.y+wy-eo*0.5, ew, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = '#1a0000';
+  const pw = ew * 0.55;
+  ctx.beginPath();
+  ctx.arc(e.x+wx-eo, e.y+wy-eo*0.5, pw, 0, Math.PI*2);
+  ctx.arc(e.x+wx+eo, e.y+wy-eo*0.5, pw, 0, Math.PI*2);
+  ctx.fill();
+
+  // HP bar
+  if (e.hp < e.maxHp) {
+    const bw = e.r*2.5, bh = 4;
+    const bx = e.x+wx-bw/2, by = e.y+wy-e.r-11;
+    ctx.fillStyle = '#220000'; ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = e.hp/e.maxHp > 0.5 ? '#cc2200' : '#ff6600';
+    ctx.fillRect(bx, by, bw*(e.hp/e.maxHp), bh);
+  }
+
+  // Golem label
+  if (e.t === 'golem') {
+    ctx.fillStyle = '#ffd700';
+    ctx.font = 'bold 8px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('GOLEM', e.x+wx, e.y+wy+e.r+13);
+  }
+}
+
+function drawProj(p) {
+  // Trail
+  ctx.globalAlpha = 0.35;
+  ctx.strokeStyle = p.clr;
+  ctx.lineWidth   = p.r * 1.8;
+  ctx.lineCap     = 'round';
+  ctx.beginPath();
+  ctx.moveTo(p.x, p.y);
+  ctx.lineTo(p.x - p.vx*0.045, p.y - p.vy*0.045);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // Head
+  ctx.fillStyle   = p.clr;
+  ctx.strokeStyle = 'rgba(255,210,100,0.6)';
+  ctx.lineWidth   = 1.5;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+  ctx.fill();
+  ctx.stroke();
+}
+
+function drawPart(p) {
+  if (p.ring) {
+    ctx.strokeStyle  = p.clr;
+    ctx.lineWidth    = 3;
+    ctx.globalAlpha  = p.life;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r*(1-p.life*0.5), 0, Math.PI*2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  } else {
+    ctx.fillStyle   = p.clr;
+    ctx.globalAlpha = p.life;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r*p.life, 0, Math.PI*2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawHUD() {
+  // Top bar
+  ctx.fillStyle = 'rgba(13,5,0,0.88)';
+  ctx.fillRect(0, 0, W, HUD_TOP_H);
+  ctx.strokeStyle = '#3d1800';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(0, 0, W, HUD_TOP_H);
+
+  // Wave label
+  ctx.fillStyle = '#ffd700';
+  ctx.font = 'bold 20px "Arial Black", Arial';
+  ctx.textAlign = 'left';
+  ctx.fillText(`WAVE ${waveIdx+1}`, 12, 30);
+
+  // Enemy count
+  const alive = enemies.length + queues.reduce((s,q)=>s+q.rem, 0);
+  ctx.fillStyle = '#ff6633';
+  ctx.font = 'bold 18px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText(`👾 ${alive}`, W/2, 30);
+
+  // Gold
+  ctx.fillStyle = '#ffd700';
+  ctx.textAlign = 'right';
+  ctx.font = 'bold 20px Arial';
+  ctx.fillText(`💰${gold}`, W-12, 30);
+
+  // Pressure bar
+  const px = 12, py = 38, pw = W-24, ph = 16;
+  const ratio = pressure / MAX_PRESSURE;
+  rRect(px, py, pw, ph, 4, '#1a0000', null);
+  if (ratio > 0) {
+    const pc = ratio > 0.75 ? '#ff0000' : ratio > 0.5 ? '#cc4400' : '#881100';
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(px, py, pw*ratio, ph, 4);
+    ctx.clip();
+    ctx.fillStyle = pc;
+    ctx.fillRect(px, py, pw, ph);
+    ctx.restore();
+  }
+  rRect(px, py, pw, ph, 4, null, '#550000', 1.5);
+  ctx.fillStyle = 'rgba(255,180,100,0.85)';
+  ctx.font = 'bold 10px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText(`💀 PRESSURE  ${Math.round(pressure)}%`, W/2, py+11);
+
+  // Mode buttons
+  const btnW = 94, btnH = 54;
+  const btnsY = H - btnH - 9;
+  const totalW = Modes.length * btnW + (Modes.length-1) * 7;
+  const btnsX = (W - totalW) / 2;
+  for (let i = 0; i < Modes.length; i++) {
+    const m = Modes[i];
+    const bx = btnsX + i*(btnW+7);
+    const active = i === modeIdx;
+    rRect(bx, btnsY, btnW, btnH, 8,
+      active ? '#6a2500' : 'rgba(13,5,0,0.9)',
+      active ? '#ff8c00' : '#3d1800',
+      active ? 2.5 : 1.5);
+    ctx.font = '24px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(m.em, bx+btnW/2, btnsY+28);
+    ctx.fillStyle = active ? '#ffd700' : '#886633';
+    ctx.font = 'bold 11px Arial';
+    ctx.fillText(m.name, bx+btnW/2, btnsY+46);
+  }
+}
+
+// ── SCREENS ───────────────────────────────────────────────────────────────────
+function drawMenu() {
+  drawBg();
+
+  // Title panel
+  rRect(20, 160, W-40, 220, 12, '#2a0f00', '#5a2800', 2);
+  ctx.fillStyle = '#ffd700';
+  ctx.font = 'bold 42px "Arial Black", Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('💩 APOCABUTT', W/2, 225);
+  ctx.fillStyle = '#c8a414';
+  ctx.font = 'bold 16px Arial';
+  ctx.fillText('DEFENSE OF THE THRONE', W/2, 258);
+  ctx.strokeStyle = '#5a2800';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(60, 272); ctx.lineTo(W-60, 272); ctx.stroke();
+  ctx.fillStyle = '#886633';
+  ctx.font = '14px Arial';
+  ctx.fillText('Gross-out Tower Defense  •  Mobile-first', W/2, 293);
+  ctx.fillText('Hold/drag to aim  |  Tap to switch fire mode', W/2, 315);
+  ctx.fillText("Survive 5 waves — don't let pressure hit 100%!", W/2, 337);
+  ctx.fillText('Worm  💩  Maggot  💩  Golem  —  3 fire modes', W/2, 358);
+
+  // Mode preview
+  const my = 400;
+  const mw = 90, mh = 50;
+  const mx = (W - Modes.length*mw - (Modes.length-1)*8) / 2;
+  for (let i = 0; i < Modes.length; i++) {
+    const m = Modes[i];
+    const bx = mx + i*(mw+8);
+    rRect(bx, my, mw, mh, 8, '#3a1500', '#5a2800', 1.5);
+    ctx.font = '22px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(m.em, bx+mw/2, my+26);
+    ctx.fillStyle = '#886633';
+    ctx.font = 'bold 10px Arial';
+    ctx.fillText(m.name, bx+mw/2, my+44);
+  }
+
+  // Start button
+  const sy = H/2 + 90;
+  rRect(W/2-110, sy, 220, 64, 14, '#8B0000', '#ff3300', 3);
+  ctx.fillStyle = '#ffd700';
+  ctx.font = 'bold 28px "Arial Black", Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('▶  START GAME', W/2, sy+43);
+
+  ctx.fillStyle = '#3d1f00';
+  ctx.font = '12px Arial';
+  ctx.fillText('v0.1 · Poopathon Build · Open Source', W/2, H-18);
+}
+
+function drawWaveClear() {
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = '#ffd700';
+  ctx.font = 'bold 46px "Arial Black", Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('WAVE CLEAR! 💩', W/2, H/2 - 40);
+
+  ctx.fillStyle = '#ff9933';
+  ctx.font = 'bold 22px Arial';
+  ctx.fillText(`+${score} gold earned`, W/2, H/2 + 0);
+
+  ctx.fillStyle = '#c8a414';
+  ctx.font = '18px Arial';
+  ctx.fillText(`Pressure: ${Math.round(pressure)}%`, W/2, H/2 + 32);
+
+  const prog = 1 - clearTimer/2.8;
+  rRect(W/2-110, H/2+58, 220, 12, 5, '#330a00', null);
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(W/2-110, H/2+58, 220*prog, 12, 5);
+  ctx.clip();
+  ctx.fillStyle = '#ffd700';
+  ctx.fillRect(W/2-110, H/2+58, 220, 12);
+  ctx.restore();
+
+  ctx.fillStyle = '#665522';
+  ctx.font = '14px Arial';
+  ctx.fillText('Next wave incoming…', W/2, H/2+90);
+}
+
+function drawGameOver() {
+  ctx.fillStyle = 'rgba(0,0,0,0.78)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = '#cc0000';
+  ctx.font = 'bold 54px "Arial Black", Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('💀 DEFILED!', W/2, H/2 - 90);
+
+  ctx.fillStyle = '#ff5533';
+  ctx.font = 'bold 22px Arial';
+  ctx.fillText('The throne has fallen.', W/2, H/2 - 48);
+
+  ctx.strokeStyle = '#5a1500';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(60, H/2-28); ctx.lineTo(W-60, H/2-28); ctx.stroke();
+
+  ctx.fillStyle = '#ffd700';
+  ctx.font = 'bold 20px Arial';
+  ctx.fillText(`Score: ${score}`, W/2, H/2 - 4);
+  ctx.fillText(`Waves survived: ${waveIdx}`, W/2, H/2 + 26);
+
+  const ry = H/2 + 70;
+  rRect(W/2-110, ry, 220, 64, 14, '#6a1a00', '#ff3300', 3);
+  ctx.fillStyle = '#ffd700';
+  ctx.font = 'bold 26px "Arial Black", Arial';
+  ctx.fillText('↻  TRY AGAIN', W/2, ry+43);
+}
+
+// ── GAME LOOP ─────────────────────────────────────────────────────────────────
+function loop(ts) {
+  const dt = Math.min((ts - lastTs) / 1000, 0.05);
+  lastTs = ts;
+
+  if (gstate === 'wave_clear') {
+    clearTimer -= dt;
+    // update particles during inter-wave pause
+    for (const p of parts) {
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      p.vx *= 0.9; p.vy *= 0.9;
+      p.life -= p.dec * dt;
+    }
+    parts = parts.filter(p => p.life > 0);
+    if (clearTimer <= 0) { gstate = 'playing'; startWave(waveIdx+1); }
+  } else {
+    update(dt);
+  }
+
+  // Screen shake offset
+  let ox = 0, oy = 0;
+  if (shakeT > 0) {
+    ox = (Math.random()-0.5)*shakeI*2;
+    oy = (Math.random()-0.5)*shakeI*2;
+    ctx.save();
+    ctx.translate(ox, oy);
+  }
+
+  if (gstate === 'menu') {
+    drawMenu();
+  } else {
+    drawBg();
+    for (const p of parts)  drawPart(p);
+    for (const p of projs)  drawProj(p);
+    for (const e of enemies) drawEnemy(e);
+    drawTower();
+    drawHUD();
+    if (gstate === 'wave_clear') drawWaveClear();
+    if (gstate === 'game_over')  drawGameOver();
+  }
+
+  if (shakeT > 0) ctx.restore();
+  requestAnimationFrame(loop);
+}
+
+// ── INPUT ─────────────────────────────────────────────────────────────────────
+function toGame(cx, cy) {
+  const r = canvas.getBoundingClientRect();
+  return { x: (cx-r.left)/scale, y: (cy-r.top)/scale };
+}
+
+function onDown(cx, cy) {
+  const p = toGame(cx, cy);
+
+  if (gstate === 'menu') {
+    const sy = H/2 + 90;
+    if (p.x >= W/2-110 && p.x <= W/2+110 && p.y >= sy && p.y <= sy+64) startGame();
+    return;
+  }
+  if (gstate === 'game_over') {
+    const ry = H/2 + 70;
+    if (p.x >= W/2-110 && p.x <= W/2+110 && p.y >= ry && p.y <= ry+64) startGame();
+    return;
+  }
+
+  // Mode buttons
+  const btnW = 94, btnH = 54;
+  const btnsY = H - btnH - 9;
+  const totalW = Modes.length*btnW + (Modes.length-1)*7;
+  const btnsX = (W - totalW) / 2;
+  for (let i = 0; i < Modes.length; i++) {
+    const bx = btnsX + i*(btnW+7);
+    if (p.x >= bx && p.x <= bx+btnW && p.y >= btnsY && p.y <= btnsY+btnH) {
+      modeIdx = i; return;
+    }
+  }
+
+  // Aim
+  if (gstate === 'playing') {
+    aimActive = true;
+    aimAngle  = Math.atan2(p.y - PIVOT_Y, p.x - TOWER_X);
+  }
+}
+
+function onMove(cx, cy) {
+  if (!aimActive || gstate !== 'playing') return;
+  const p = toGame(cx, cy);
+  aimAngle = Math.atan2(p.y - PIVOT_Y, p.x - TOWER_X);
+}
+
+function onUp() { aimActive = false; }
+
+canvas.addEventListener('mousedown',  e => onDown(e.clientX, e.clientY));
+canvas.addEventListener('mousemove',  e => onMove(e.clientX, e.clientY));
+canvas.addEventListener('mouseup',    onUp);
+canvas.addEventListener('touchstart', e => { e.preventDefault(); onDown(e.touches[0].clientX, e.touches[0].clientY); }, {passive:false});
+canvas.addEventListener('touchmove',  e => { e.preventDefault(); onMove(e.touches[0].clientX, e.touches[0].clientY); }, {passive:false});
+canvas.addEventListener('touchend',   e => { e.preventDefault(); onUp(); }, {passive:false});
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+function startGame() {
+  enemies = []; projs = []; parts = [];
+  pressure = 0; gold = 0; score = 0;
+  modeIdx = 0; fireCd = 0;
+  aimAngle = -Math.PI/2; aimActive = false;
+  shakeT = 0; shakeI = 0;
+  gstate = 'playing';
+  startWave(0);
+}
+
+requestAnimationFrame(ts => { lastTs = ts; requestAnimationFrame(loop); });
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+# Godot
+.godot/
+*.import
+*.uid
+export_presets.cfg
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+.env
+.env.local
+
+# Vercel
+.vercel/
+
+# Editor
+.vscode/
+.idea/
+
+# Session state (ephemeral)
+production/session-state/
+production/session-logs/

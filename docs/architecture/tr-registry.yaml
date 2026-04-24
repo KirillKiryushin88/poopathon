@@ -1,0 +1,433 @@
+# Technical Requirements Registry
+# Generated: 2026-04-24
+# Source GDDs: design/gdd/master-gdd.md, design/gdd/game-concept.md
+# Engine: Godot 4.6
+# Architecture: docs/architecture/architecture.md
+#
+# ID format: TR-<system>-<NNN>
+# Never renumber or remove existing IDs — only append.
+# adr_coverage: fill in with ADR number once relevant ADR is Accepted.
+
+requirements:
+
+  # ─────────────────────────────────────────
+  # CENTRAL TOWER
+  # ─────────────────────────────────────────
+
+  - id: TR-central-001
+    gdd: master-gdd.md
+    system: CentralTower
+    requirement: "Player controls aim direction via right-thumb touch drag (joystick radius 120dp, max travel 60dp)"
+    domain: Input/Core
+    adr_coverage: ""
+
+  - id: TR-central-002
+    gdd: master-gdd.md
+    system: CentralTower
+    requirement: "Three fire modes: Chunk Burst (tap), Automatic Diarrhea (hold), Gas Cone (swipe-up gesture)"
+    domain: Input/Core
+    adr_coverage: ""
+
+  - id: TR-central-003
+    gdd: master-gdd.md
+    system: CentralTower
+    requirement: "Cannon projectile trajectory follows aim direction in real time; no snap-to-enemy auto-aim"
+    domain: Core
+    adr_coverage: "ADR-003"
+
+  - id: TR-central-004
+    gdd: master-gdd.md
+    system: CentralTower
+    requirement: "Gas Cone fire mode produces a cone AoE in the swiped direction; damage falls off at cone edges"
+    domain: Core
+    adr_coverage: ""
+
+  - id: TR-central-005
+    gdd: master-gdd.md
+    system: CentralTower
+    requirement: "Carrier Parasite enemy drops soft currency only on cannon kill (not tower kill); CentralTowerController must tag projectile source"
+    domain: Core/Economy
+    adr_coverage: ""
+
+  # ─────────────────────────────────────────
+  # TOWERS
+  # ─────────────────────────────────────────
+
+  - id: TR-tower-001
+    gdd: master-gdd.md
+    system: TowerSystem
+    requirement: "18 tower variants across 4 tiers; all stats defined in TowerData .tres resources — no hardcoded values"
+    domain: Core/Data
+    adr_coverage: "ADR-004, ADR-007"
+
+  - id: TR-tower-002
+    gdd: master-gdd.md
+    system: TowerSystem
+    requirement: "Tower cost curve: Tier 1=80 Slime, Tier 2=180 total, Tier 3=380 total, Tier 4=700 total"
+    domain: Core/Economy
+    adr_coverage: "ADR-004"
+
+  - id: TR-tower-003
+    gdd: master-gdd.md
+    system: TowerSystem
+    requirement: "Boss chapter levels apply a 0.85 cost multiplier to all tower purchase/upgrade costs"
+    domain: Core/Economy
+    adr_coverage: "ADR-004"
+
+  - id: TR-tower-004
+    gdd: master-gdd.md
+    system: TowerSystem
+    requirement: "Towers apply elemental tags to enemies; 7 synergy combos (Scalded, Toxic Steam, Bio-Freeze, Stench Ignition, Stench Chill, Wet Ignition, Parasite Feast) must be detected and signalled via CombatEventBus"
+    domain: Core
+    adr_coverage: ""
+
+  - id: TR-tower-005
+    gdd: master-gdd.md
+    system: TowerSystem
+    requirement: "Tower sell returns a partial refund; sell value formula defined in TowerData (not hardcoded in TowerSystem)"
+    domain: Core/Economy
+    adr_coverage: "ADR-004"
+
+  - id: TR-tower-006
+    gdd: master-gdd.md
+    system: TowerSystem
+    requirement: "TowerRadialMenu opens on tower slot tap; shows upgrade, sell, info options; must not contain any combat logic"
+    domain: Presentation
+    adr_coverage: ""
+
+  - id: TR-tower-007
+    gdd: master-gdd.md
+    system: TowerSystem
+    requirement: "Дерьмодемон boss requires simultaneous fire from 3+ element types to break Infernal Shell phase; TowerSystem must expose current active element type set"
+    domain: Core
+    adr_coverage: ""
+
+  # ─────────────────────────────────────────
+  # ENEMIES
+  # ─────────────────────────────────────────
+
+  - id: TR-enemy-001
+    gdd: master-gdd.md
+    system: EnemySystem
+    requirement: "8 enemy types fully specced: Virus, Bacteria, Worm, Slime, Pus, Spore, Carrier Parasite, Sanitizer Exorcist — all stats in EnemyData .tres resources"
+    domain: Core/Data
+    adr_coverage: "ADR-004, ADR-008"
+
+  - id: TR-enemy-002
+    gdd: master-gdd.md
+    system: EnemySystem
+    requirement: "Maximum 40 simultaneous active enemies; EnemySystem enforces the cap and notifies VFXSystem for degradation"
+    domain: Core/Performance
+    adr_coverage: "ADR-006"
+
+  - id: TR-enemy-003
+    gdd: master-gdd.md
+    system: EnemySystem
+    requirement: "Sanitizer Exorcist has a 1.5-sec visible wind-up animation before Sanitize spray; this is a player-punishable window"
+    domain: Core/Presentation
+    adr_coverage: "ADR-003"
+
+  - id: TR-enemy-004
+    gdd: master-gdd.md
+    system: EnemySystem
+    requirement: "Each enemy type has a distinct death VFX; VFX id stored in EnemyData, played via VFXSystem — not inline in EnemyBase"
+    domain: Core/Presentation
+    adr_coverage: "ADR-006"
+
+  - id: TR-enemy-005
+    gdd: master-gdd.md
+    system: EnemySystem
+    requirement: "Enemy priority targeting for towers: nearest to throne by path distance, not Euclidean distance"
+    domain: Core
+    adr_coverage: "ADR-008"
+
+  - id: TR-enemy-006
+    gdd: master-gdd.md
+    system: EnemySystem
+    requirement: "Enemies follow lane paths; NavigationAgent2D or Curve2D approach is an open question resolved by ADR-008"
+    domain: Core
+    adr_coverage: "ADR-008"
+
+  # ─────────────────────────────────────────
+  # WAVES
+  # ─────────────────────────────────────────
+
+  - id: TR-wave-001
+    gdd: master-gdd.md
+    system: WaveManager
+    requirement: "WaveManager reads WaveConfig resources; no hardcoded spawn sequences in WaveManager script"
+    domain: Core/Data
+    adr_coverage: "ADR-004"
+
+  - id: TR-wave-002
+    gdd: master-gdd.md
+    system: WaveManager
+    requirement: "Fast-forward mode doubles wave speed (configurable multiplier in WaveConfig); WaveManager exposes fast_forward(enabled: bool)"
+    domain: Core
+    adr_coverage: "ADR-003, ADR-004"
+
+  - id: TR-wave-003
+    gdd: master-gdd.md
+    system: WaveManager
+    requirement: "WaveManager emits wave_completed when all enemies in wave are dead; emits all_waves_completed when final wave clears"
+    domain: Core
+    adr_coverage: ""
+
+  - id: TR-wave-004
+    gdd: master-gdd.md
+    system: WaveManager
+    requirement: "Pressure meter decays 5/sec between waves after a 10-second grace period; WaveManager triggers decay start on wave_completed"
+    domain: Core
+    adr_coverage: "ADR-009"
+
+  # ─────────────────────────────────────────
+  # BOSSES
+  # ─────────────────────────────────────────
+
+  - id: TR-boss-001
+    gdd: master-gdd.md
+    system: BossController
+    requirement: "6 bosses with multi-phase encounters: Засор, Цепень, Крыса, Змея, Смытая рыбка-мутант, Дерьмодемон — all data in BossData .tres resources"
+    domain: Core/Data
+    adr_coverage: "ADR-004"
+
+  - id: TR-boss-002
+    gdd: master-gdd.md
+    system: BossController
+    requirement: "Дерьмодемон has 4 phases; Infernal Shell phase requires simultaneous fire from 3+ element types to break"
+    domain: Core
+    adr_coverage: ""
+
+  - id: TR-boss-003
+    gdd: master-gdd.md
+    system: BossController
+    requirement: "Each boss has intro VFX/animation and a finisher VFX; BossData stores vfx_id references; VFXSystem plays them on BossController signals"
+    domain: Core/Presentation
+    adr_coverage: "ADR-006"
+
+  - id: TR-boss-004
+    gdd: master-gdd.md
+    system: BossController
+    requirement: "Bosses have lane gimmick mechanics (e.g., lane blocking, multi-lane spawning); BossPhaseData specifies gimmick type and parameters"
+    domain: Core
+    adr_coverage: ""
+
+  - id: TR-boss-005
+    gdd: master-gdd.md
+    system: BossController
+    requirement: "Boss chapter levels award Chapter Materials on completion; BossController emits boss_died, CampaignManager handles the reward grant via EconomyService"
+    domain: Core/Economy
+    adr_coverage: ""
+
+  # ─────────────────────────────────────────
+  # META PROGRESSION
+  # ─────────────────────────────────────────
+
+  - id: TR-meta-001
+    gdd: master-gdd.md
+    system: MetaProgression
+    requirement: "Progression is permanent (not roguelite); account level, chapter unlocks, and upgrade states persist across sessions via SaveService"
+    domain: Foundation
+    adr_coverage: "ADR-002, ADR-005"
+
+  - id: TR-meta-002
+    gdd: master-gdd.md
+    system: MetaProgression
+    requirement: "Account level 30 unlocks NG+ mode if Chapter 6 is cleared; MetaProgression checks both conditions atomically"
+    domain: Foundation
+    adr_coverage: ""
+
+  - id: TR-meta-003
+    gdd: master-gdd.md
+    system: MetaProgression
+    requirement: "Upgrade tree state is stored in MetaProgression; TowerSystem reads upgrade bonuses from MetaProgression at tower creation time"
+    domain: Foundation/Core
+    adr_coverage: "ADR-004, ADR-007"
+
+  - id: TR-meta-004
+    gdd: master-gdd.md
+    system: MetaProgression
+    requirement: "6 chapters with distinct chapter-specific materials; MetaProgression tracks per-chapter material balance independently"
+    domain: Foundation
+    adr_coverage: "ADR-005"
+
+  # ─────────────────────────────────────────
+  # ECONOMY
+  # ─────────────────────────────────────────
+
+  - id: TR-econ-001
+    gdd: master-gdd.md
+    system: EconomyService
+    requirement: "4 currency types: Slime (soft), Crystals (hard/IAP), Chapter Materials (per-chapter), Enema Charges — all managed exclusively by EconomyService"
+    domain: Foundation
+    adr_coverage: "ADR-002, ADR-005"
+
+  - id: TR-econ-002
+    gdd: master-gdd.md
+    system: EconomyService
+    requirement: "Pressure meter gain sources: cannon kill +5, tower kill +2, Throne hit +(damage×0.15), kill streak 5+ in 3sec +10 burst; all formulas in config resources, not hardcoded"
+    domain: Foundation/Core
+    adr_coverage: "ADR-009"
+
+  - id: TR-econ-003
+    gdd: master-gdd.md
+    system: EconomyService
+    requirement: "IAP catalog: crystal_pack_sm ($0.99/50cr), crystal_pack_md ($4.99/280cr), crystal_pack_lg ($9.99/600cr), crystal_pack_xl ($19.99/1400cr), no_ads ($7.99 non-consumable), sludge_pass ($4.99/mo subscription)"
+    domain: Foundation/Platform
+    adr_coverage: "ADR-012"
+
+  - id: TR-econ-004
+    gdd: master-gdd.md
+    system: EconomyService
+    requirement: "No game mechanic is paywalled; IAP provides comfort and acceleration only; EconomyService spend_* functions must not branch on IAP ownership"
+    domain: Foundation
+    adr_coverage: ""
+
+  - id: TR-econ-005
+    gdd: master-gdd.md
+    system: EconomyService
+    requirement: "Клизма Апокалипсиса ultimate has dual cost: full Pressure Meter (100.0) + 1 Enema Charge; both checked atomically before activation"
+    domain: Foundation/Core
+    adr_coverage: ""
+
+  # ─────────────────────────────────────────
+  # SAVE / LOAD
+  # ─────────────────────────────────────────
+
+  - id: TR-save-001
+    gdd: master-gdd.md
+    system: SaveService
+    requirement: "SaveService serializes GameSession, MetaProgression, and EconomyService state into a single save; format decided by ADR-005"
+    domain: Foundation
+    adr_coverage: "ADR-001, ADR-005"
+
+  - id: TR-save-002
+    gdd: master-gdd.md
+    system: SaveService
+    requirement: "SaveService.load_game() is called via call_deferred in _ready() to guarantee all autoloads complete their own _ready() first"
+    domain: Foundation
+    adr_coverage: "ADR-002, ADR-005"
+
+  - id: TR-save-003
+    gdd: master-gdd.md
+    system: SaveService
+    requirement: "FileAccess.store_* return value (bool) must be checked; emit save_failed signal on false return (Godot 4.4 API change — was void)"
+    domain: Foundation
+    adr_coverage: "ADR-005"  # ADR-005 explicitly covers the Godot 4.4 FileAccess bool return requirement
+
+  # ─────────────────────────────────────────
+  # UI / UX
+  # ─────────────────────────────────────────
+
+  - id: TR-ui-001
+    gdd: master-gdd.md
+    system: HUD
+    requirement: "HUD layout zones: top 8% row1, 8-14% row2, 14-78% play field, 78-94% thumb zones, 94-100% home bar safe area; all interactive elements within safe zones"
+    domain: Presentation
+    adr_coverage: ""
+
+  - id: TR-ui-002
+    gdd: master-gdd.md
+    system: HUD
+    requirement: "All touch targets ≥ 48dp; right joystick 120dp radius, 60dp max travel; ultimate button 80dp circle"
+    domain: Presentation
+    adr_coverage: ""
+
+  - id: TR-ui-003
+    gdd: master-gdd.md
+    system: HUD
+    requirement: "HUD scripts contain zero combat logic; HUD reads all state via signals from GameSession, EconomyService, CombatEventBus"
+    domain: Presentation
+    adr_coverage: "ADR-001, ADR-003"
+
+  - id: TR-ui-004
+    gdd: master-gdd.md
+    system: HUD
+    requirement: "Клизма Апокалипсиса activation shows a confirm dialog with a 1-second auto-confirm countdown to prevent accidental activation"
+    domain: Presentation
+    adr_coverage: ""
+
+  - id: TR-ui-005
+    gdd: master-gdd.md
+    system: HUD
+    requirement: "Portrait-locked layout; one-handed fallback required; all controls reachable from defined thumb zones"
+    domain: Presentation
+    adr_coverage: ""
+
+  - id: TR-ui-006
+    gdd: master-gdd.md
+    system: ResultScreen
+    requirement: "ResultScreen displays level result, star rating, and currency earned; reads from LevelResult value passed via GameSession.level_ended signal"
+    domain: Presentation
+    adr_coverage: ""
+
+  - id: TR-ui-007
+    gdd: master-gdd.md
+    system: MetaScreen
+    requirement: "MetaScreen shows tower upgrade tree and chapter select; reads from MetaProgression and EconomyService only; no direct gameplay state access"
+    domain: Presentation
+    adr_coverage: ""
+
+  # ─────────────────────────────────────────
+  # PLATFORM
+  # ─────────────────────────────────────────
+
+  - id: TR-plat-001
+    gdd: master-gdd.md
+    system: PlatformBridge
+    requirement: "Interstitial ads fire only every 3rd non-rewarded session; the cooldown counter and enforcement logic live in PlatformBridge, not in gameplay or UI scripts"
+    domain: Platform
+    adr_coverage: "ADR-010"
+
+  - id: TR-plat-002
+    gdd: master-gdd.md
+    system: PlatformBridge
+    requirement: "Ads are banned during: active waves, boss encounters, ultimate animations, and launch/splash screens; PlatformBridge checks a context flag before delegating to AdsBridge"
+    domain: Platform
+    adr_coverage: "ADR-010"
+
+  - id: TR-plat-003
+    gdd: master-gdd.md
+    system: PlatformBridge
+    requirement: "Monetization code (ad calls, IAP purchase calls) must not appear in gameplay scripts; only PlatformBridge may call AdsBridge and BillingBridge"
+    domain: Platform
+    adr_coverage: "ADR-010"
+
+  - id: TR-plat-004
+    gdd: master-gdd.md
+    system: PlatformBridge
+    requirement: "Android 16KB page support must be enabled in export preset (Godot 4.5 feature required for Google Play targeting Android 15+)"
+    domain: Platform
+    adr_coverage: ""
+
+  # ─────────────────────────────────────────
+  # PERFORMANCE
+  # ─────────────────────────────────────────
+
+  - id: TR-perf-001
+    gdd: master-gdd.md
+    system: VFXSystem
+    requirement: "Maximum 200 active particles at once; VFXSystem tracks budget and applies tiered degradation (reduce count) before allowing frame drops"
+    domain: Core/Performance
+    adr_coverage: "ADR-006"
+
+  - id: TR-perf-002
+    gdd: master-gdd.md
+    system: VFXSystem
+    requirement: "All VFX designed for Mobile renderer first; any glow effect must account for Godot 4.6 glow-before-tonemapping change and be re-tuned accordingly"
+    domain: Core/Performance
+    adr_coverage: "ADR-006"
+
+  - id: TR-perf-003
+    gdd: master-gdd.md
+    system: EnemySystem
+    requirement: "Maximum 150 draw calls per frame; EnemySystem and TowerSystem use batching-friendly node structures (no unnecessary CanvasItem sub-layers)"
+    domain: Core/Performance
+    adr_coverage: ""
+
+  - id: TR-perf-004
+    gdd: master-gdd.md
+    system: VFXSystem
+    requirement: "Shader Baker (Godot 4.5) must be run in the CI/CD export pipeline to eliminate startup shader compilation hitching on device"
+    domain: Core/Performance
+    adr_coverage: ""
