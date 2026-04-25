@@ -66,10 +66,10 @@ const HUD_H     = 82;
 const BOT_H     = 72;
 const FIELD_TOP = HUD_H;
 const FIELD_BOT = H - BOT_H;
-const WATER_Y   = Math.round(FIELD_TOP + (FIELD_BOT - FIELD_TOP) * 0.72);
+const WATER_Y   = Math.round(FIELD_TOP + (FIELD_BOT - FIELD_TOP) * 0.28);
 const TOWER_X   = W / 2;
-const TOWER_Y   = WATER_Y + 18;   // cannon base sits in water
-const PIVOT_Y   = TOWER_Y - 38;
+const TOWER_Y   = FIELD_TOP + 50;  // cannon sits in water at top
+const PIVOT_Y   = TOWER_Y + 45;    // pivot below base — barrel aims down
 const BLEN      = 92;              // barrel length — BIG ASS
 const BBASE     = 20;              // barrel half-width at base
 const BTIP      = 11;              // barrel half-width at tip
@@ -103,7 +103,7 @@ let gs='menu';
 let enemies=[],projs=[],parts=[],floaters=[],panels=[];
 let pressure=0,gold=0,score=0,waveIdx=0;
 let modeIdx=0,fireCd=0;
-let aimAngle=-Math.PI/2, aimActive=false;
+let aimAngle=Math.PI/2, aimActive=false;
 let shakeT=0,shakeI=0;
 let queues=[];
 let clearTimer=0;
@@ -233,7 +233,7 @@ function update(dt){
       q.timer-=q.iv;q.rem--;
       const d=ED[q.t];
       enemies.push({
-        t:q.t,x:rnd(40,W-40),y:rnd(-38,-5),
+        t:q.t,x:rnd(40,W-40),y:rnd(H+5,H+38),
         hp:d.maxHp,maxHp:d.maxHp,spd:d.speed*rnd(0.88,1.12),
         r:d.r,clr:d.clr,rim:d.rim,
         reward:d.reward,pDmg:d.pDmg,pKill:d.pKill,armor:d.armor||0,
@@ -254,10 +254,10 @@ function update(dt){
       burst(TOWER_X,TOWER_Y,'#ff3300',6,200,6);
       shake(e.t==='bacteria'?15:8,0.38);
       vigA=0.72;
-      panels.push({x:TOWER_X+rnd(-45,45),y:TOWER_Y-70,
+      panels.push({x:TOWER_X+rnd(-45,45),y:TOWER_Y+70,
         text:PANEL_POOL.throne[Math.floor(Math.random()*PANEL_POOL.throne.length)],
         life:1,dec:1.2,sc:0.3,rot:rnd(-0.2,0.2)});
-      floater(TOWER_X,TOWER_Y-90,`+${e.pDmg}💀`,C.neonRed);
+      floater(TOWER_X,TOWER_Y+90,`+${e.pDmg}💀`,C.neonRed);
       e.dead=true;
       if(pressure>=MAX_P){gs='game_over';return;}
     }
@@ -352,17 +352,17 @@ function drawBg(){
     cx.beginPath(); cx.ellipse(W/2,stainCy,rx,ry,0,0,Math.PI*2); cx.stroke();
   }
 
-  // Grime streaks from top (dripping from drain)
+  // Grime streaks from bottom (rising from drain)
   cx.strokeStyle='rgba(80,50,10,0.22)'; cx.lineWidth=2;
   const drips=[75,130,195,260,315];
   for(const dx of drips){
-    cx.beginPath(); cx.moveTo(dx,FIELD_TOP+30);
-    cx.bezierCurveTo(dx+rnd(-15,15),FIELD_TOP+80,dx+rnd(-15,15),FIELD_TOP+140,dx+rnd(-10,10),FIELD_TOP+180);
+    cx.beginPath(); cx.moveTo(dx,FIELD_BOT-30);
+    cx.bezierCurveTo(dx+rnd(-15,15),FIELD_BOT-80,dx+rnd(-15,15),FIELD_BOT-140,dx+rnd(-10,10),FIELD_BOT-180);
     cx.stroke();
   }
 
-  // ── DRAIN PIPE at top center (where enemies come from) ──
-  const drainY=FIELD_TOP+50, drainRx=52, drainRy=32;
+  // ── DRAIN PIPE at bottom center (where enemies come from) ──
+  const drainY=FIELD_BOT-50, drainRx=52, drainRy=32;
   // Outer rust ring
   cx.fillStyle='rgba(80,40,0,0.7)';
   cx.beginPath(); cx.ellipse(W/2,drainY,drainRx+10,drainRy+7,0,0,Math.PI*2); cx.fill();
@@ -387,20 +387,20 @@ function drawBg(){
     cx.beginPath(); cx.ellipse(drip_x,drainY+drainRy+8+i*3,2,4+i*2,0,0,Math.PI*2); cx.fill();
   }
 
-  // ── SEWER WATER (lower section) ──
+  // ── SEWER WATER (upper section — toilet bowl) ──
   // Water body
   cx.fillStyle=C.water;
-  cx.fillRect(0,WATER_Y+8,W,FIELD_BOT-WATER_Y-8);
+  cx.fillRect(0,FIELD_TOP,W,WATER_Y-FIELD_TOP);
 
-  // Animated wavy water surface
+  // Animated wavy water surface (at bottom edge of water)
   cx.fillStyle=C.waterSurf;
   cx.beginPath();
-  cx.moveTo(0,WATER_Y+8);
+  cx.moveTo(0,WATER_Y);
   for(let x=0;x<=W;x+=4){
     const y=WATER_Y+Math.sin((x*0.04)+waterOffset)*5+Math.sin((x*0.07)+waterOffset*1.4)*3;
     cx.lineTo(x,y);
   }
-  cx.lineTo(W,FIELD_BOT); cx.lineTo(0,FIELD_BOT); cx.closePath(); cx.fill();
+  cx.lineTo(W,FIELD_TOP); cx.lineTo(0,FIELD_TOP); cx.closePath(); cx.fill();
 
   // Foam / scum at water surface
   cx.strokeStyle=C.waterFoam; cx.lineWidth=2;
@@ -411,15 +411,15 @@ function drawBg(){
   }
   cx.stroke();
 
-  // Murky water depth gradient
-  const waterGr=cx.createLinearGradient(0,WATER_Y,0,FIELD_BOT);
-  waterGr.addColorStop(0,'rgba(0,0,0,0)');
-  waterGr.addColorStop(1,'rgba(0,0,0,0.5)');
-  cx.fillStyle=waterGr; cx.fillRect(0,WATER_Y,W,FIELD_BOT-WATER_Y);
+  // Murky water depth gradient (darker at top)
+  const waterGr=cx.createLinearGradient(0,FIELD_TOP,0,WATER_Y);
+  waterGr.addColorStop(0,'rgba(0,0,0,0.5)');
+  waterGr.addColorStop(1,'rgba(0,0,0,0)');
+  cx.fillStyle=waterGr; cx.fillRect(0,FIELD_TOP,W,WATER_Y-FIELD_TOP);
 
-  // Floating debris in water
+  // Floating debris in water (near surface)
   cx.fillStyle='rgba(40,60,20,0.5)';
-  const debris=[{x:60,y:WATER_Y+28},{x:150,y:WATER_Y+18},{x:280,y:WATER_Y+35},{x:330,y:WATER_Y+22}];
+  const debris=[{x:60,y:WATER_Y-28},{x:150,y:WATER_Y-18},{x:280,y:WATER_Y-35},{x:330,y:WATER_Y-22}];
   for(const d of debris){
     const dx=d.x+Math.sin(waterOffset+d.x)*4;
     cx.beginPath(); cx.ellipse(dx,d.y,8,3,0.3,0,Math.PI*2); cx.fill();
@@ -443,27 +443,27 @@ function drawBg(){
 function drawCannon(){
   const tx=TOWER_X, ty=TOWER_Y;
 
-  // Water reflection of cannon (distorted ellipse in water)
+  // Water reflection of cannon (distorted ellipse in water above)
   cx.globalAlpha=0.18;
   cx.fillStyle='#4a2008';
-  cx.beginPath(); cx.ellipse(tx,ty+30,40,12,0,0,Math.PI*2); cx.fill();
+  cx.beginPath(); cx.ellipse(tx,ty-20,40,12,0,0,Math.PI*2); cx.fill();
   cx.globalAlpha=1;
 
-  // ── PEDESTAL BASE (sitting in water) ──
-  // Sub-base (wider, darker — submerged part)
+  // ── PEDESTAL BASE (mounted at top in water) ──
+  // Sub-base (wider, darker — top mount cap)
   cx.fillStyle=darken(C.cannonMetal,0.2);
-  cx.beginPath(); cx.ellipse(tx,ty+14,58,20,0,0,Math.PI*2); cx.fill();
+  cx.beginPath(); cx.ellipse(tx,ty-14,58,20,0,0,Math.PI*2); cx.fill();
 
   // Main base disc
   cx.fillStyle=C.cannonMetal; cx.strokeStyle=C.cannonLight; cx.lineWidth=3;
-  cx.beginPath(); cx.ellipse(tx,ty+4,54,18,0,0,Math.PI*2); cx.fill(); cx.stroke();
+  cx.beginPath(); cx.ellipse(tx,ty-4,54,18,0,0,Math.PI*2); cx.fill(); cx.stroke();
 
-  // Pedestal body
-  rRect(tx-30,ty-42,60,48,6,C.cannonMetal,C.cannonMid,2.5);
+  // Pedestal body (extends DOWN toward pivot)
+  rRect(tx-30,ty-6,60,52,6,C.cannonMetal,C.cannonMid,2.5);
 
   // Pedestal decorative rings
   for(let i=0;i<3;i++){
-    const ry=ty-10-i*12;
+    const ry=ty+12+i*12;
     cx.fillStyle=C.cannonMid;
     cx.beginPath(); cx.ellipse(tx,ry,30,6,0,0,Math.PI*2); cx.fill();
     cx.strokeStyle=C.cannonLight; cx.lineWidth=1.5;
@@ -560,9 +560,9 @@ function drawCannon(){
     const ca=(pressure-65)/35;
     cx.strokeStyle=`rgba(220,38,38,${ca*0.65})`; cx.lineWidth=1.5;
     cx.beginPath();
-    cx.moveTo(tx-18,ty-30); cx.lineTo(tx-4,ty-10);
-    cx.moveTo(tx+20,ty-28); cx.lineTo(tx+8,ty-8);
-    cx.moveTo(tx-8, ty-42); cx.lineTo(tx-24,ty-24);
+    cx.moveTo(tx-18,ty+30); cx.lineTo(tx-4,ty+10);
+    cx.moveTo(tx+20,ty+28); cx.lineTo(tx+8,ty+8);
+    cx.moveTo(tx-8, ty+42); cx.lineTo(tx-24,ty+24);
     cx.stroke();
   }
 
@@ -573,7 +573,7 @@ function drawCannon(){
     cx.globalAlpha=sv*0.55;
     for(let i=0;i<4;i++){
       const sx=tx+(i%2===0?-1:1)*(22+Math.floor(i/2)*12);
-      const sy=ty-35;
+      const sy=ty+35;
       for(let j=0;j<3;j++){
         cx.fillStyle=`rgba(180,180,180,${0.4-j*0.12})`;
         cx.beginPath();
@@ -596,8 +596,8 @@ function drawCannon(){
     cx.font='bold 14px Orbitron,Arial';
     cx.textAlign='center';
     cx.strokeStyle='rgba(0,40,30,0.8)'; cx.lineWidth=3;
-    cx.strokeText('★ FLUSH! ★',tx,PIVOT_Y-80);
-    cx.fillText('★ FLUSH! ★',tx,PIVOT_Y-80);
+    cx.strokeText('★ FLUSH! ★',tx,WATER_Y+40);
+    cx.fillText('★ FLUSH! ★',tx,WATER_Y+40);
   }
 }
 
@@ -918,55 +918,40 @@ function drawGameOver(){
 // ── MENU ──────────────────────────────────────────────────────────────────────
 function drawMenu(){
   drawBg();
-  // Title panel
-  rRect(16,106,W-32,276,14,'rgba(10,4,0,0.96)','#663300',2);
+  drawCannon();
 
-  // Big title
+  // Dark panel over lower field
+  rRect(16,WATER_Y+20,W-32,340,18,'rgba(8,3,0,0.94)','#553300',2);
+
+  // Title
   cx.fillStyle=C.neonGold;
-  cx.font='bold 58px Orbitron,Arial';
+  cx.font='bold 62px Orbitron,Arial';
   cx.textAlign='center';
-  cx.shadowColor='#aa4400';cx.shadowBlur=24;
-  cx.strokeStyle='rgba(40,0,0,0.9)';cx.lineWidth=5;
-  cx.strokeText('POOPATHON',W/2,186);
-  cx.fillText('POOPATHON',W/2,186);
+  cx.shadowColor='#aa3300';cx.shadowBlur=28;
+  cx.strokeStyle='rgba(30,0,0,0.9)';cx.lineWidth=5;
+  cx.strokeText('POOPATHON',W/2,WATER_Y+120);
+  cx.fillText('POOPATHON',W/2,WATER_Y+120);
   cx.shadowBlur=0;
 
-  cx.fillStyle=C.textMuted;cx.font='bold 12px Orbitron,Arial';cx.lineWidth=0;
-  cx.fillText('TOWER DEFENSE',W/2,214);
+  cx.fillStyle=C.textMuted;cx.font='bold 11px Orbitron,Arial';cx.lineWidth=0;
+  cx.fillText('TOWER DEFENSE',W/2,WATER_Y+150);
 
   cx.strokeStyle='#553300';cx.lineWidth=1;
-  cx.beginPath();cx.moveTo(60,228);cx.lineTo(W-60,228);cx.stroke();
+  cx.beginPath();cx.moveTo(80,WATER_Y+168);cx.lineTo(W-80,WATER_Y+168);cx.stroke();
 
-  cx.fillStyle='#886644';cx.font='12px JetBrains Mono';
-  cx.fillText('Defend the Throne · Active Manual Combat',W/2,250);
-  cx.fillText('Hold/drag to aim · Auto-fires · 3 fire modes',W/2,270);
-  cx.fillStyle='#553322';cx.font='11px JetBrains Mono';
-  cx.fillText('Kill enemies → build Pressure → FLUSH all!',W/2,291);
-  cx.fillText('Enemies: VIRUS  ·  WORM  ·  BACTERIA (armored)',W/2,310);
-  cx.fillText('Don\'t let Pressure hit 100% or it\'s GAME OVER',W/2,328);
-  cx.fillText('💩 Chunk  ·  💦 Auto  ·  💨 Gas Cone',W/2,348);
-
-  // Mode buttons
-  const mw=88,mh=50,my=408;
-  const mx=(W-Modes.length*mw-(Modes.length-1)*8)/2;
-  for(let i=0;i<Modes.length;i++){
-    const m=Modes[i],bx=mx+i*(mw+8);
-    rRect(bx,my,mw,mh,8,'#2a0e00','#553300',1.5);
-    cx.font='24px Arial';cx.textAlign='center';cx.fillText(m.em,bx+mw/2,my+28);
-    cx.fillStyle='#886644';cx.font='bold 9px Orbitron,Arial';
-    cx.fillText(m.name.split(' ')[0],bx+mw/2,my+46);
-  }
+  cx.fillStyle='#886644';cx.font='13px JetBrains Mono';
+  cx.fillText('Aim · Fire · FLUSH',W/2,WATER_Y+198);
 
   // Start button
-  const sy=H/2+112;
-  cx.shadowColor='#cc2200';cx.shadowBlur=18;
-  rRect(W/2-120,sy,240,68,14,'#8B0000','#ff3300',3);
+  const sy=WATER_Y+226;
+  cx.shadowColor='#cc2200';cx.shadowBlur=20;
+  rRect(W/2-120,sy,240,64,14,'#8B0000','#ff3300',3);
   cx.shadowBlur=0;
-  cx.fillStyle=C.neonGold;cx.font='bold 24px Orbitron,Arial';cx.textAlign='center';
-  cx.fillText('▶  START',W/2,sy+44);
+  cx.fillStyle=C.neonGold;cx.font='bold 26px Orbitron,Arial';cx.textAlign='center';
+  cx.fillText('▶  START',W/2,sy+43);
 
-  cx.fillStyle='#2a1200';cx.font='10px JetBrains Mono';cx.shadowBlur=0;
-  cx.fillText('v0.3 · Open Source on GitHub',W/2,H-18);
+  cx.fillStyle='#2a1200';cx.font='10px JetBrains Mono';
+  cx.fillText('v0.4 · Open Source on GitHub',W/2,H-18);
 }
 
 // ── LOOP ──────────────────────────────────────────────────────────────────────
@@ -1017,8 +1002,8 @@ function toG(cx2,cy2){const r=cv.getBoundingClientRect();return{x:(cx2-r.left)/S
 function onDown(cx2,cy2){
   const p=toG(cx2,cy2);
   if(gs==='menu'){
-    const sy=H/2+112;
-    if(p.x>=W/2-120&&p.x<=W/2+120&&p.y>=sy&&p.y<=sy+68)startGame();
+    const sy=WATER_Y+226;
+    if(p.x>=W/2-120&&p.x<=W/2+120&&p.y>=sy&&p.y<=sy+64)startGame();
     return;
   }
   if(gs==='game_over'){
@@ -1052,7 +1037,7 @@ function startGame(){
   enemies=[];projs=[];parts=[];floaters=[];panels=[];
   pressure=0;gold=0;score=0;
   modeIdx=0;fireCd=0;
-  aimAngle=-Math.PI/2;aimActive=false;
+  aimAngle=Math.PI/2;aimActive=false;
   shakeT=0;shakeI=0;vigA=0;
   ultActive=false;ultTimer=0;
   gs='playing';startWave(0);
