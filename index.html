@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>APOCABUTT: Defense of the Throne</title>
+  <title>POOPATHON</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
@@ -417,7 +417,7 @@ function drawTower() {
   // Brand text on tank
   ctx.fillStyle='rgba(140,100,40,0.4)';
   ctx.font='bold 8px Arial'; ctx.textAlign='center';
-  ctx.fillText('THRONE OF SHAME', tx, ty-54);
+  ctx.fillText('POOPATHON', tx, ty-54);
 
   // ── TOILET BOWL ──
   // Outer bowl (porcelain)
@@ -857,7 +857,7 @@ function drawGameOver() {
   ctx.fillStyle='#cc0000'; ctx.font='bold 50px "Arial Black",Arial'; ctx.textAlign='center';
   ctx.fillText('💀 DEFILED!',W/2,H/2-104);
   ctx.fillStyle='#ff4422'; ctx.font='bold 18px Arial';
-  ctx.fillText('The Throne of Shame has fallen.',W/2,H/2-68);
+  ctx.fillText('The Throne has fallen. The Poop wins.',W/2,H/2-68);
   ctx.strokeStyle='#440000'; ctx.lineWidth=1;
   ctx.beginPath(); ctx.moveTo(W/2-110,H/2-50); ctx.lineTo(W/2+110,H/2-50); ctx.stroke();
   ctx.fillStyle='#ffd700'; ctx.font='bold 18px Arial';
@@ -885,15 +885,12 @@ function drawMenu() {
   // Title panel
   rRect(18,110,W-36,260,14,'rgba(18,7,0,0.96)','#664400',2);
   // Russian title
-  ctx.fillStyle='#cc8800'; ctx.font='bold 14px Arial'; ctx.textAlign='center';
-  ctx.fillText('ЖОПОКАЛИПСИС: ОБОРОНА ТРОНА',W/2,148);
-  // English title
-  ctx.fillStyle='#ffd700'; ctx.font='bold 36px "Arial Black",Arial';
-  ctx.strokeStyle='rgba(40,0,0,0.8)'; ctx.lineWidth=4;
-  ctx.strokeText('💩 APOCABUTT',W/2,196);
-  ctx.fillText('💩 APOCABUTT',W/2,196);
-  ctx.fillStyle='#c8a414'; ctx.font='bold 16px Arial'; ctx.lineWidth=0;
-  ctx.fillText('DEFENSE OF THE THRONE',W/2,224);
+  ctx.fillStyle='#ffd700'; ctx.font='bold 52px "Arial Black",Arial';
+  ctx.strokeStyle='rgba(40,0,0,0.9)'; ctx.lineWidth=5;
+  ctx.strokeText('💩 POOPATHON',W/2,196);
+  ctx.fillText('💩 POOPATHON',W/2,196);
+  ctx.fillStyle='#c8a414'; ctx.font='bold 15px Arial'; ctx.lineWidth=0;
+  ctx.fillText('TOWER DEFENSE',W/2,224);
   ctx.strokeStyle='#553300'; ctx.lineWidth=1;
   ctx.beginPath(); ctx.moveTo(60,238); ctx.lineTo(W-60,238); ctx.stroke();
   ctx.fillStyle='#886633'; ctx.font='13px Arial';
@@ -926,7 +923,7 @@ function drawMenu() {
   ctx.beginPath(); ctx.roundRect(W/2-120,sy,240,68,14); ctx.fill();
 
   ctx.fillStyle='#2a1200'; ctx.font='11px Arial';
-  ctx.fillText('v0.2 · Poopathon Prototype · Open Source on GitHub',W/2,H-16);
+  ctx.fillText('v0.2 · Open Source on GitHub',W/2,H-16);
 }
 
 // ── MAIN LOOP ─────────────────────────────────────────────────────────────────
