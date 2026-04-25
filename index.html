@@ -70,7 +70,7 @@ const WATER_Y   = Math.round(FIELD_TOP + (FIELD_BOT - FIELD_TOP) * 0.28);
 const TOWER_X   = W / 2;
 const TOWER_Y   = FIELD_TOP + 50;  // cannon sits in water at top
 const PIVOT_Y   = TOWER_Y + 45;    // pivot below base — barrel aims down
-const BLEN      = 92;              // barrel length — BIG ASS
+const BLEN      = 14;              // spawn offset from anus
 const BBASE     = 20;              // barrel half-width at base
 const BTIP      = 11;              // barrel half-width at tip
 const MAX_P     = 100;
@@ -111,6 +111,8 @@ let vigA=0;
 let ultActive=false,ultTimer=0;
 let lastTs=0;
 let waterOffset=0; // animated water surface
+let pressureFullTimer=0;
+let touchDownT=0,touchDownY=0,gestureSwiped=false;
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 const rnd  = (a,b)     => a+Math.random()*(b-a);
@@ -223,7 +225,12 @@ function update(dt){
   if(shakeT>0){shakeT-=dt;if(shakeT<=0)shakeI=0;}
   if(vigA>0)vigA=Math.max(0,vigA-dt*3);
   if(ultActive){ultTimer-=dt;if(ultTimer<=0)ultActive=false;}
-  if(pressure>=MAX_P&&!ultActive){setTimeout(()=>{if(pressure>=MAX_P)triggerUlt();},0);return;}
+  if(pressure>=MAX_P&&!ultActive){
+    pressureFullTimer+=dt;
+    if(pressureFullTimer>=30){pressureFullTimer=0;triggerUlt();}
+    return;
+  }
+  pressureFullTimer=0;
 
   // Spawn
   for(const q of queues){
@@ -439,165 +446,109 @@ function drawBg(){
   cx.fillStyle=rightGr; cx.fillRect(W-28,FIELD_TOP,28,FIELD_BOT-FIELD_TOP);
 }
 
-// ── DRAW: BIG ASS CANNON ──────────────────────────────────────────────────────
+// ── DRAW: BUTT CANNON ─────────────────────────────────────────────────────────
 function drawCannon(){
   const tx=TOWER_X, ty=TOWER_Y;
 
-  // Water reflection of cannon (distorted ellipse in water above)
-  cx.globalAlpha=0.18;
-  cx.fillStyle='#4a2008';
-  cx.beginPath(); cx.ellipse(tx,ty-20,40,12,0,0,Math.PI*2); cx.fill();
+  // Toilet seat rim at very top
+  cx.fillStyle='#ede0c8'; cx.strokeStyle='#c8b090'; cx.lineWidth=8;
+  cx.beginPath(); cx.ellipse(tx,ty-8,60,20,0,0,Math.PI); cx.fill(); cx.stroke();
+  cx.strokeStyle='#fff8ec'; cx.lineWidth=2;
+  cx.beginPath(); cx.ellipse(tx,ty-10,55,16,0,0,Math.PI); cx.stroke();
+
+  // Left cheek
+  cx.fillStyle='#f0b090'; cx.strokeStyle='#8B4513'; cx.lineWidth=2.5;
+  cx.beginPath(); cx.ellipse(tx-24,ty+26,34,40,-0.08,0,Math.PI*2);
+  cx.fill(); cx.stroke();
+  // Right cheek
+  cx.beginPath(); cx.ellipse(tx+24,ty+26,34,40,0.08,0,Math.PI*2);
+  cx.fill(); cx.stroke();
+
+  // Skin sheen
+  cx.globalAlpha=0.22;
+  cx.fillStyle='rgba(255,240,210,1)';
+  cx.beginPath(); cx.ellipse(tx-32,ty+12,12,16,-0.3,0,Math.PI*2); cx.fill();
+  cx.beginPath(); cx.ellipse(tx+32,ty+12,12,16,0.3,0,Math.PI*2); cx.fill();
   cx.globalAlpha=1;
 
-  // ── PEDESTAL BASE (mounted at top in water) ──
-  // Sub-base (wider, darker — top mount cap)
-  cx.fillStyle=darken(C.cannonMetal,0.2);
-  cx.beginPath(); cx.ellipse(tx,ty-14,58,20,0,0,Math.PI*2); cx.fill();
+  // Crack shadow
+  const crackGr=cx.createLinearGradient(tx-10,ty,tx+10,ty);
+  crackGr.addColorStop(0,'rgba(0,0,0,0)');
+  crackGr.addColorStop(0.5,'rgba(55,12,0,0.28)');
+  crackGr.addColorStop(1,'rgba(0,0,0,0)');
+  cx.fillStyle=crackGr;
+  cx.fillRect(tx-10,ty-2,20,PIVOT_Y-ty+10);
 
-  // Main base disc
-  cx.fillStyle=C.cannonMetal; cx.strokeStyle=C.cannonLight; cx.lineWidth=3;
-  cx.beginPath(); cx.ellipse(tx,ty-4,54,18,0,0,Math.PI*2); cx.fill(); cx.stroke();
-
-  // Pedestal body (extends DOWN toward pivot)
-  rRect(tx-30,ty-6,60,52,6,C.cannonMetal,C.cannonMid,2.5);
-
-  // Pedestal decorative rings
-  for(let i=0;i<3;i++){
-    const ry=ty+12+i*12;
-    cx.fillStyle=C.cannonMid;
-    cx.beginPath(); cx.ellipse(tx,ry,30,6,0,0,Math.PI*2); cx.fill();
-    cx.strokeStyle=C.cannonLight; cx.lineWidth=1.5;
-    cx.stroke();
-  }
-
-  // ── CANNON PIVOT CAP ──
-  cx.fillStyle='#5a2c0c'; cx.strokeStyle=C.cannonLight; cx.lineWidth=2.5;
-  cx.beginPath(); cx.arc(tx,PIVOT_Y,16,0,Math.PI*2); cx.fill(); cx.stroke();
-  cx.fillStyle=darken(C.cannonMetal,0.2);
-  cx.beginPath(); cx.arc(tx,PIVOT_Y,8,0,Math.PI*2); cx.fill();
-
-  // ── BARREL — TAPERED, BIG ASS ──
-  cx.save();
-  cx.translate(tx,PIVOT_Y);
-  cx.rotate(aimAngle);
-
-  // Barrel shadow (offset)
-  cx.globalAlpha=0.3;
-  cx.fillStyle='rgba(0,0,0,0.6)';
+  // Butt crack line
+  cx.strokeStyle='#6B2F0A'; cx.lineWidth=2.5;
   cx.beginPath();
-  cx.moveTo(3, BBASE+2);
-  cx.lineTo(BLEN+2, BTIP+2);
-  cx.lineTo(BLEN+2, -BTIP+2);
-  cx.lineTo(3, -BBASE+2);
-  cx.closePath();
-  cx.fill();
-  cx.globalAlpha=1;
-
-  // ── BARREL BODY (tapered trapezoid) ──
-  // Dark metal gradient
-  const barrelGr=cx.createLinearGradient(0,-BBASE,0,BBASE);
-  barrelGr.addColorStop(0,C.cannonLight);
-  barrelGr.addColorStop(0.35,darken(C.cannonMetal,0.1));
-  barrelGr.addColorStop(0.65,darken(C.cannonMetal,0.1));
-  barrelGr.addColorStop(1,C.cannonLight);
-  cx.fillStyle=barrelGr;
-  cx.beginPath();
-  cx.moveTo(0,  BBASE);
-  cx.lineTo(BLEN, BTIP);
-  cx.lineTo(BLEN,-BTIP);
-  cx.lineTo(0,  -BBASE);
-  cx.closePath(); cx.fill();
-
-  // Barrel edge stroke
-  cx.strokeStyle=C.cannonMid; cx.lineWidth=2;
-  cx.beginPath();
-  cx.moveTo(0,  BBASE); cx.lineTo(BLEN, BTIP);
-  cx.moveTo(0, -BBASE); cx.lineTo(BLEN,-BTIP);
+  cx.moveTo(tx,ty+2);
+  cx.bezierCurveTo(tx+4,ty+20,tx+3,ty+34,tx,PIVOT_Y-2);
   cx.stroke();
 
-  // ── REINFORCEMENT BANDS (3 rings) ──
-  const bands=[0.25,0.5,0.72];
-  for(const t of bands){
-    const bx=BLEN*t;
-    const bw=lerp(BBASE,BTIP,t)+4; // slightly wider than barrel at this point
-    cx.fillStyle=C.cannonMid; cx.strokeStyle=C.cannonLight; cx.lineWidth=1.5;
-    cx.beginPath(); cx.ellipse(bx,0,bw*0.45,bw,0,0,Math.PI*2); cx.fill(); cx.stroke();
-  }
+  // Anus (firing point)
+  cx.fillStyle='#4a1a06'; cx.strokeStyle='#2a0a02'; cx.lineWidth=2;
+  cx.beginPath(); cx.arc(tx,PIVOT_Y,11,0,Math.PI*2); cx.fill(); cx.stroke();
+  cx.fillStyle='#1a0600';
+  cx.beginPath(); cx.arc(tx,PIVOT_Y,6,0,Math.PI*2); cx.fill();
+  cx.strokeStyle='rgba(180,80,30,0.45)'; cx.lineWidth=2;
+  cx.beginPath(); cx.arc(tx,PIVOT_Y,11,0,Math.PI*2); cx.stroke();
 
-  // ── MUZZLE CAP ──
-  cx.fillStyle='#3a1c06'; cx.strokeStyle=C.cannonLight; cx.lineWidth=2.5;
-  cx.beginPath(); cx.arc(BLEN,0,BTIP+7,0,Math.PI*2); cx.fill(); cx.stroke();
-  // Inner barrel hole
-  cx.fillStyle='#080300';
-  cx.beginPath(); cx.arc(BLEN,0,BTIP-1,0,Math.PI*2); cx.fill();
-
-  // ── BARREL HIGHLIGHT (top edge shine) ──
-  cx.strokeStyle='rgba(255,200,120,0.25)'; cx.lineWidth=2;
-  cx.beginPath(); cx.moveTo(8,-BBASE+3); cx.lineTo(BLEN-4,-BTIP+3); cx.stroke();
-
-  // ── MUZZLE FLASH ──
+  // Muzzle flash from anus
   const m=Modes[modeIdx];
   const flashRatio=fireCd>0?Math.min(1,fireCd*4*(m.rate<1?m.rate:1)):0;
   if(flashRatio>0.05){
-    // Outer glow
-    cx.globalAlpha=flashRatio*0.6;
-    const fGr=cx.createRadialGradient(BLEN,0,0,BLEN,0,36);
+    cx.globalAlpha=flashRatio*0.8;
+    const fGr=cx.createRadialGradient(tx,PIVOT_Y,0,tx,PIVOT_Y,30);
     fGr.addColorStop(0,m.clr); fGr.addColorStop(1,'rgba(0,0,0,0)');
-    cx.fillStyle=fGr; cx.beginPath(); cx.arc(BLEN,0,36,0,Math.PI*2); cx.fill();
-    // Core flash
+    cx.fillStyle=fGr; cx.beginPath(); cx.arc(tx,PIVOT_Y,30,0,Math.PI*2); cx.fill();
     cx.globalAlpha=flashRatio;
-    cx.fillStyle=m.clr;
-    cx.beginPath(); cx.arc(BLEN,0,18,0,Math.PI*2); cx.fill();
-    cx.fillStyle='rgba(255,255,255,0.8)';
-    cx.beginPath(); cx.arc(BLEN,0,8,0,Math.PI*2); cx.fill();
+    cx.fillStyle=m.clr; cx.beginPath(); cx.arc(tx,PIVOT_Y,14,0,Math.PI*2); cx.fill();
+    cx.fillStyle='rgba(255,255,255,0.7)';
+    cx.beginPath(); cx.arc(tx,PIVOT_Y,6,0,Math.PI*2); cx.fill();
     cx.globalAlpha=1;
   }
 
-  cx.restore();
-
-  // ── PRESSURE CRACKS on pedestal ──
+  // Pressure cracks on cheeks
   if(pressure>65){
     const ca=(pressure-65)/35;
     cx.strokeStyle=`rgba(220,38,38,${ca*0.65})`; cx.lineWidth=1.5;
     cx.beginPath();
-    cx.moveTo(tx-18,ty+30); cx.lineTo(tx-4,ty+10);
-    cx.moveTo(tx+20,ty+28); cx.lineTo(tx+8,ty+8);
-    cx.moveTo(tx-8, ty+42); cx.lineTo(tx-24,ty+24);
+    cx.moveTo(tx-30,ty+18); cx.lineTo(tx-18,ty+36);
+    cx.moveTo(tx+32,ty+15); cx.lineTo(tx+20,ty+33);
     cx.stroke();
   }
 
-  // ── STEAM VENTS at high pressure ──
+  // Steam vents at high pressure
   if(pressure>80){
-    const sv=(pressure-80)/20;
-    const t=Date.now()*0.003;
-    cx.globalAlpha=sv*0.55;
-    for(let i=0;i<4;i++){
-      const sx=tx+(i%2===0?-1:1)*(22+Math.floor(i/2)*12);
-      const sy=ty+35;
+    const sv=(pressure-80)/20,t=Date.now()*0.003;
+    cx.globalAlpha=sv*0.5;
+    for(let i=0;i<3;i++){
+      const sx=tx+(i===0?-36:i===2?36:0);
       for(let j=0;j<3;j++){
-        cx.fillStyle=`rgba(180,180,180,${0.4-j*0.12})`;
+        cx.fillStyle=`rgba(200,200,200,${0.4-j*0.12})`;
         cx.beginPath();
-        cx.arc(sx+Math.sin(t+j)*4, sy-(j*12)+Math.sin(t*1.5)*3, 4+j*2, 0, Math.PI*2);
+        cx.arc(sx+Math.sin(t+j)*4,ty-(j*13)+Math.sin(t*1.5)*3,4+j*2,0,Math.PI*2);
         cx.fill();
       }
     }
     cx.globalAlpha=1;
   }
 
-  // ── ULTIMATE READY PULSE ──
+  // Ultimate ready pulse
   if(pressure>=MAX_P&&!ultActive){
     const pulse=(Math.sin(Date.now()*0.007)*0.5+0.5);
     cx.strokeStyle=`rgba(0,224,200,${0.55+pulse*0.45})`;
     cx.lineWidth=4+pulse*3;
     cx.shadowColor='#00e0c8'; cx.shadowBlur=20;
-    cx.beginPath(); cx.arc(tx,PIVOT_Y,62+pulse*10,0,Math.PI*2); cx.stroke();
+    cx.beginPath(); cx.arc(tx,PIVOT_Y,55+pulse*10,0,Math.PI*2); cx.stroke();
     cx.shadowBlur=0;
     cx.fillStyle=`rgba(0,224,200,${0.85+pulse*0.15})`;
-    cx.font='bold 14px Orbitron,Arial';
-    cx.textAlign='center';
+    cx.font='bold 13px Orbitron,Arial'; cx.textAlign='center';
     cx.strokeStyle='rgba(0,40,30,0.8)'; cx.lineWidth=3;
-    cx.strokeText('★ FLUSH! ★',tx,WATER_Y+40);
-    cx.fillText('★ FLUSH! ★',tx,WATER_Y+40);
+    const flushLabel=pressureFullTimer>0?`★ FLUSH! ★  ${Math.ceil(30-pressureFullTimer)}s`:'★ FLUSH! ★';
+    cx.strokeText(flushLabel,tx,WATER_Y+40,W-40);
+    cx.fillText(flushLabel,tx,WATER_Y+40,W-40);
   }
 }
 
@@ -842,7 +793,7 @@ function drawHUD(){
     cx.font=`bold 10px Orbitron,Arial`;
     cx.fillText(m.name.split(' ')[0],bx+btnW/2,btnsY+44);
     cx.fillStyle='#4a3020';cx.font='8px JetBrains Mono';
-    cx.fillText(`DMG:${m.dmg} ×${m.rate}`,bx+btnW/2,btnsY+56);
+    cx.fillText(`${m.dmg}dmg ×${m.rate}`,bx+btnW/2,btnsY+54,btnW-6);
   }
 }
 
@@ -861,14 +812,14 @@ function drawUltFlash(){
   cx.fillStyle=`rgba(0,200,180,${a*0.15})`;cx.fillRect(0,0,W,H);
   if(ultTimer>1.1){
     const fa=(ultTimer-1.1)*1.1;
-    cx.font='bold 32px Orbitron,Arial';cx.textAlign='center';
+    cx.font='bold 26px Orbitron,Arial';cx.textAlign='center';
     cx.strokeStyle=`rgba(0,50,40,${fa*0.9})`;cx.lineWidth=5;
-    cx.strokeText('💀 PRESSURE RELEASED! 💀',W/2,H/2-10);
+    cx.strokeText('PRESSURE RELEASED!',W/2,H/2-10,W-30);
     cx.fillStyle=`rgba(0,220,200,${fa})`;
-    cx.fillText('💀 PRESSURE RELEASED! 💀',W/2,H/2-10);
-    cx.font='bold 18px JetBrains Mono';
+    cx.fillText('PRESSURE RELEASED!',W/2,H/2-10,W-30);
+    cx.font='bold 16px JetBrains Mono';
     cx.fillStyle=`rgba(150,255,230,${fa*0.9})`;
-    cx.fillText('ALL ENEMIES FLUSHED',W/2,H/2+28);
+    cx.fillText('ALL ENEMIES FLUSHED',W/2,H/2+28,W-40);
   }
 }
 
@@ -877,11 +828,11 @@ function drawWaveClear(){
   cx.fillStyle='rgba(0,0,0,0.72)';cx.fillRect(0,0,W,H);
   rRect(W/2-160,H/2-110,320,250,14,'rgba(12,5,0,0.97)','#aa4400',2);
   cx.fillStyle=C.neonGold;cx.font='bold 36px Orbitron,Arial';cx.textAlign='center';
-  cx.fillText('WAVE CLEAR 💩',W/2,H/2-60);
+  cx.fillText('WAVE CLEAR 💩',W/2,H/2-60,W-30);
   cx.strokeStyle='#553300';cx.lineWidth=1;
   cx.beginPath();cx.moveTo(W/2-120,H/2-38);cx.lineTo(W/2+120,H/2-38);cx.stroke();
   cx.fillStyle='#ff9933';cx.font='bold 17px JetBrains Mono,monospace';
-  cx.fillText(`+${score} SLIME COLLECTED`,W/2,H/2-12);
+  cx.fillText(`+${score} SLIME COLLECTED`,W/2,H/2-12,W-40);
   cx.fillStyle=C.textMuted;cx.font='14px JetBrains Mono';
   cx.fillText(`Pressure: ${Math.round(pressure)}%`,W/2,H/2+16);
   cx.fillText(`Wave ${waveIdx+1} / ${WD.length}`,W/2,H/2+42);
@@ -1018,13 +969,25 @@ function onDown(cx2,cy2){
     if(p.x>=bx&&p.x<=bx+btnW&&p.y>=btnsY&&p.y<=btnsY+btnH){modeIdx=i;return;}
   }
   if(pressure>=MAX_P&&dist(p.x,p.y,TOWER_X,TOWER_Y)<110){triggerUlt();return;}
-  if(gs==='playing'){aimActive=true;aimAngle=Math.atan2(p.y-PIVOT_Y,p.x-TOWER_X);}
+  if(gs==='playing'){
+    touchDownT=Date.now(); touchDownY=p.y; gestureSwiped=false;
+    modeIdx=1; // default hold = Auto Diarrhea
+    aimActive=true; aimAngle=Math.atan2(p.y-PIVOT_Y,p.x-TOWER_X);
+  }
 }
 function onMove(cx2,cy2){
   if(!aimActive||gs!=='playing')return;
-  const p=toG(cx2,cy2);aimAngle=Math.atan2(p.y-PIVOT_Y,p.x-TOWER_X);
+  const p=toG(cx2,cy2);
+  aimAngle=Math.atan2(p.y-PIVOT_Y,p.x-TOWER_X);
+  if(!gestureSwiped&&p.y<touchDownY-30){
+    gestureSwiped=true; modeIdx=2; // swipe up = Gas Cone
+  }
 }
-function onUp(){aimActive=false;}
+function onUp(){
+  if(aimActive&&gs==='playing'&&!gestureSwiped&&Date.now()-touchDownT<150)
+    modeIdx=0; // tap = Chunk Burst
+  aimActive=false;
+}
 cv.addEventListener('mousedown', e=>onDown(e.clientX,e.clientY));
 cv.addEventListener('mousemove', e=>onMove(e.clientX,e.clientY));
 cv.addEventListener('mouseup',   onUp);
@@ -1038,6 +1001,7 @@ function startGame(){
   pressure=0;gold=0;score=0;
   modeIdx=0;fireCd=0;
   aimAngle=Math.PI/2;aimActive=false;
+  pressureFullTimer=0;touchDownT=0;gestureSwiped=false;
   shakeT=0;shakeI=0;vigA=0;
   ultActive=false;ultTimer=0;
   gs='playing';startWave(0);
