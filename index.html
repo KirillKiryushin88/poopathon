@@ -4,15 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>POOPATHON</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body {
-      width: 100%; height: 100%;
-      background: #0a0400;
-      display: flex; justify-content: center; align-items: center;
-      overflow: hidden;
+    *  { margin:0; padding:0; box-sizing:border-box; }
+    html,body {
+      width:100%; height:100%;
+      background:#050200;
+      display:flex; justify-content:center; align-items:center;
+      overflow:hidden;
+      font-family:'Orbitron','Arial Black',sans-serif;
     }
-    canvas { display: block; touch-action: none; }
+    canvas { display:block; touch-action:none; }
   </style>
 </head>
 <body>
@@ -20,308 +23,282 @@
 <script>
 'use strict';
 
-// ── CANVAS SETUP ──────────────────────────────────────────────────────────────
-const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d');
+// ── CANVAS ───────────────────────────────────────────────────────────────────
+const cv = document.getElementById('c');
+const cx = cv.getContext('2d');
 const W = 390, H = 844;
-let scale = 1;
+let SC = 1;
 function resize() {
-  scale = Math.min(window.innerWidth / W, window.innerHeight / H);
-  canvas.width = W; canvas.height = H;
-  canvas.style.width  = (W * scale) + 'px';
-  canvas.style.height = (H * scale) + 'px';
+  SC = Math.min(window.innerWidth/W, window.innerHeight/H);
+  cv.width = W; cv.height = H;
+  cv.style.width  = (W*SC)+'px';
+  cv.style.height = (H*SC)+'px';
 }
 resize();
 window.addEventListener('resize', resize);
 
-// ── LAYOUT CONSTANTS (GDD §10.1) ──────────────────────────────────────────────
-const HUD_H      = 82;          // top HUD height
-const FIELD_TOP  = HUD_H;
-const FIELD_BOT  = Math.round(H * 0.78);  // 78%
-const TOWER_X    = W / 2;
-const TOWER_Y    = FIELD_BOT - 80;
-const PIVOT_Y    = TOWER_Y - 24;
-const BARREL_LEN = 44;
-const PBAR_X     = 8;           // vertical pressure bar x
-const PBAR_W     = 18;
-const PBAR_TOP   = FIELD_TOP + 8;
-const PBAR_BOT   = FIELD_BOT - 8;
-const MAX_P      = 100;
-
-// ── FIRE MODES — GDD §3.2 ─────────────────────────────────────────────────────
-const Modes = [
-  { name:'CHUNK BURST', key:'chunk', em:'💩',
-    dmg:28, rate:0.85, spd:260, splash:0,  pr:9, clr:'#7B4020',
-    pKill:8,  desc:'Heavy ballistic · Armor pierce · Stagger' },
-  { name:'AUTO DIARRHEA', key:'auto', em:'💦',
-    dmg:7,  rate:4.2,  spd:540, splash:0,  pr:4, clr:'#C8A028',
-    pKill:3,  desc:'Rapid stream · Low damage per hit' },
-  { name:'GAS CONE', key:'gas',   em:'💨',
-    dmg:20, rate:0.42, spd:270, splash:98, pr:9, clr:'#3a9B00',
-    pKill:12, desc:'AOE gas blast · Area damage' },
-];
-
-// ── ENEMIES — GDD §6.2 ────────────────────────────────────────────────────────
-const EDefs = {
-  virus: {
-    maxHp:13, speed:152, r:9,
-    clr:'#8BCC00', rim:'#4a7700',
-    reward:3, pDmg:7, pKill:3,
-    armor:0, type:'virus'
-  },
-  worm: {
-    maxHp:38, speed:58, r:13,
-    clr:'#7B3010', rim:'#3d1800',
-    reward:5, pDmg:10, pKill:5,
-    armor:0, type:'worm'
-  },
-  bacteria: {
-    maxHp:150, speed:26, r:24,
-    clr:'#C8A050', rim:'#886830',
-    reward:25, pDmg:20, pKill:10,
-    armor:0.45, type:'bacteria'
-  },
+// ── DESIGN TOKENS (UI/UX Pro Max — Arcade palette) ───────────────────────────
+const C = {
+  bgOuter:    '#050200',       // outside bowl
+  porcelain:  '#d4c888',       // toilet wall
+  porcelainDk:'#a89860',       // shaded porcelain
+  grime:      '#6a4e20',       // stain/grime color
+  water:      '#1a3a12',       // sewer water
+  waterSurf:  '#2a5a1c',       // water surface
+  waterFoam:  '#3a7828',       // foam
+  drain:      '#0a0600',       // drain hole
+  hudBg:      'rgba(5,2,0,0.94)',
+  hudBorder:  '#441400',
+  neonRed:    '#DC2626',       // pressure
+  neonGold:   '#F59E0B',       // currency
+  neonGreen:  '#22C55E',       // pressure gain
+  neonBlue:   '#3B82F6',       // info
+  cannonMetal:'#1e0e04',
+  cannonMid:  '#4a2008',
+  cannonLight:'#7a3810',
+  white:      '#FFFFFF',
+  textPrimary:'#F8FAFC',
+  textMuted:  '#94A3B8',
 };
 
-// ── WAVE DEFS ─────────────────────────────────────────────────────────────────
-const WaveDefs = [
+// ── LAYOUT ───────────────────────────────────────────────────────────────────
+const HUD_H     = 82;
+const BOT_H     = 72;
+const FIELD_TOP = HUD_H;
+const FIELD_BOT = H - BOT_H;
+const WATER_Y   = Math.round(FIELD_TOP + (FIELD_BOT - FIELD_TOP) * 0.72);
+const TOWER_X   = W / 2;
+const TOWER_Y   = WATER_Y + 18;   // cannon base sits in water
+const PIVOT_Y   = TOWER_Y - 38;
+const BLEN      = 92;              // barrel length — BIG ASS
+const BBASE     = 20;              // barrel half-width at base
+const BTIP      = 11;              // barrel half-width at tip
+const MAX_P     = 100;
+
+// ── FIRE MODES ───────────────────────────────────────────────────────────────
+const Modes = [
+  { name:'CHUNK BURST',    em:'💩', dmg:28, rate:0.85, spd:265, splash:0,  pr:9,  clr:'#7B4020', pKill:8  },
+  { name:'AUTO DIARRHEA',  em:'💦', dmg:7,  rate:4.2,  spd:545, splash:0,  pr:4,  clr:'#C8A028', pKill:3  },
+  { name:'GAS CONE',       em:'💨', dmg:20, rate:0.42, spd:275, splash:100,pr:9,  clr:'#22a010', pKill:12 },
+];
+
+// ── ENEMIES ───────────────────────────────────────────────────────────────────
+const ED = {
+  virus:    { maxHp:14,  speed:150, r:11, clr:'#8BCC00', rim:'#4a7700', reward:3,  pDmg:7,  pKill:3,  armor:0    },
+  worm:     { maxHp:40,  speed:58,  r:15, clr:'#8B3010', rim:'#3d1400', reward:5,  pDmg:10, pKill:5,  armor:0    },
+  bacteria: { maxHp:155, speed:26,  r:28, clr:'#C8A050', rim:'#886830', reward:25, pDmg:20, pKill:10, armor:0.45 },
+};
+
+// ── WAVES ─────────────────────────────────────────────────────────────────────
+const WD = [
   [{ t:'virus',  n:8,  iv:1.0 }],
-  [{ t:'virus',  n:6,  iv:0.9 }, { t:'worm',    n:4,  iv:1.4 }],
-  [{ t:'virus',  n:10, iv:0.7 }, { t:'worm',    n:5,  iv:1.2 }, { t:'bacteria', n:1, iv:4.0 }],
-  [{ t:'virus',  n:12, iv:0.6 }, { t:'worm',    n:7,  iv:1.0 }, { t:'bacteria', n:2, iv:3.5 }],
-  [{ t:'bacteria',n:4, iv:2.8 }, { t:'worm',    n:10, iv:0.8 }, { t:'virus',    n:18,iv:0.45 }],
+  [{ t:'virus',  n:7,  iv:0.9 }, { t:'worm',     n:4, iv:1.4 }],
+  [{ t:'virus',  n:10, iv:0.7 }, { t:'worm',     n:5, iv:1.2 }, { t:'bacteria',n:1,iv:4.0 }],
+  [{ t:'virus',  n:12, iv:0.6 }, { t:'worm',     n:7, iv:1.0 }, { t:'bacteria',n:2,iv:3.5 }],
+  [{ t:'bacteria',n:4, iv:2.8 }, { t:'worm',     n:10,iv:0.8 }, { t:'virus',   n:18,iv:0.45}],
 ];
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
-let gstate = 'menu';
-let enemies, projs, parts, floaters, impactPanels;
-let pressure, gold, score, waveIdx;
-let modeIdx, fireCd;
-let aimAngle, aimActive;
-let shakeT, shakeI;
-let queues;
-let clearTimer;
-let vignetteA = 0;
-let ultActive = false, ultTimer = 0;
-let lastTs = 0;
+let gs='menu';
+let enemies=[],projs=[],parts=[],floaters=[],panels=[];
+let pressure=0,gold=0,score=0,waveIdx=0;
+let modeIdx=0,fireCd=0;
+let aimAngle=-Math.PI/2, aimActive=false;
+let shakeT=0,shakeI=0;
+let queues=[];
+let clearTimer=0;
+let vigA=0;
+let ultActive=false,ultTimer=0;
+let lastTs=0;
+let waterOffset=0; // animated water surface
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
-const rnd   = (a, b)    => a + Math.random() * (b - a);
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const dist  = (ax,ay,bx,by) => Math.hypot(bx-ax,by-ay);
-const lerp  = (a, b, t) => a + (b-a)*t;
+const rnd  = (a,b)     => a+Math.random()*(b-a);
+const clamp= (v,a,b)   => Math.max(a,Math.min(b,v));
+const dist = (ax,ay,bx,by) => Math.hypot(bx-ax,by-ay);
+const lerp = (a,b,t)   => a+(b-a)*t;
 
-function darken(hex, f) {
-  let r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
-  r=Math.max(0,Math.round(r*(1-f))); g=Math.max(0,Math.round(g*(1-f))); b=Math.max(0,Math.round(b*(1-f)));
+function darken(hex,f) {
+  let r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  r=Math.max(0,Math.round(r*(1-f)));g=Math.max(0,Math.round(g*(1-f)));b=Math.max(0,Math.round(b*(1-f)));
   return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
 }
 
-function rRect(x,y,w,h,r,fill,stroke,lw=2) {
-  ctx.beginPath(); ctx.roundRect(x,y,w,h,r);
-  if (fill)   { ctx.fillStyle=fill;   ctx.fill(); }
-  if (stroke) { ctx.strokeStyle=stroke; ctx.lineWidth=lw; ctx.stroke(); }
+function rRect(x,y,w,h,r,fill,stroke,lw=2){
+  cx.beginPath(); cx.roundRect(x,y,w,h,r);
+  if(fill){cx.fillStyle=fill;cx.fill();}
+  if(stroke){cx.strokeStyle=stroke;cx.lineWidth=lw;cx.stroke();}
 }
 
 // ── PARTICLES ─────────────────────────────────────────────────────────────────
 function burst(x,y,clr,n,spd,sz) {
-  for (let i=0;i<n;i++) {
-    const a=rnd(0,Math.PI*2), s=rnd(spd*0.4,spd);
+  for(let i=0;i<n;i++){
+    const a=rnd(0,Math.PI*2),s=rnd(spd*0.4,spd);
     parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,r:rnd(sz*0.5,sz),clr,life:1,dec:rnd(1.8,3.2)});
   }
 }
-function splatSplash(x,y,splR) {
-  burst(x,y,'#7B4020',16,200,7);
-  burst(x,y,'#C8A028', 8,120,4);
-  parts.push({x,y,vx:0,vy:0,r:splR,clr:'rgba(150,60,0,0.38)',life:1,dec:5.5,ring:true});
+function splatRing(x,y,r,clr){
+  parts.push({x,y,vx:0,vy:0,r,clr,life:1,dec:5.5,ring:true});
 }
-function gasSplash(x,y,splR) {
-  burst(x,y,'#3a9B00',14,180,7);
-  burst(x,y,'#88dd00', 8,110,4);
-  parts.push({x,y,vx:0,vy:0,r:splR,clr:'rgba(50,140,0,0.35)',life:1,dec:4.5,ring:true});
-}
-function shake(intensity,dur) {
-  shakeI=Math.max(shakeI,intensity); shakeT=Math.max(shakeT,dur);
-}
+function shake(i,d){ shakeI=Math.max(shakeI,i); shakeT=Math.max(shakeT,d); }
 
 // ── FLOATERS ──────────────────────────────────────────────────────────────────
-function floater(x,y,text,clr) {
-  floaters.push({x,y:y-16,text,clr,life:1,dec:1.6,vy:-55});
+function floater(x,y,text,clr){
+  floaters.push({x,y,text,clr,life:1,dec:1.5,vy:-60});
 }
 
-// ── IMPACT PANELS (KA-SPLAT!) ────────────────────────────────────────────────
-const IMPACT_TEXTS = {
-  chunk:    ['KA-SPLAT!','BLORP!','THWUMP!'],
-  auto:     ['RAT-A-TAT!','SPLAT!','PITTER-PAT!'],
-  gas:      ['РЫГНУЛО!','BWAAAP!','TOXIC!'],
-  throne:   ['THRONE HIT!','ДЕРЬМО!'],
-  ultimate: ['FLUSH!','СБРОС!','PURGE!'],
+// ── IMPACT PANELS ─────────────────────────────────────────────────────────────
+const PANEL_POOL={
+  chunk:   ['KA-SPLAT!','BLORP!','THWUMP!'],
+  auto:    ['RAT-A-TAT!','SPLAT!','PEW!'],
+  gas:     ['BWAAAP!','РЫГНУЛО!','TOXIC!'],
+  throne:  ['THRONE HIT!','ДЕРЬМО!'],
+  ultimate:['FLUSH!!!','PURGED!','СБРОС!'],
 };
-function impactPanel(x,y,modeKey) {
-  if (Math.random() > 0.55) return; // 55% chance per kill
-  const pool = IMPACT_TEXTS[modeKey] || IMPACT_TEXTS.chunk;
-  const text = pool[Math.floor(Math.random()*pool.length)];
-  impactPanels.push({x,y,text,life:1,dec:1.4,sc:0.4,tSc:1.0,rot:rnd(-0.25,0.25)});
+function panel(x,y,key){
+  if(Math.random()>0.58)return;
+  const pool=PANEL_POOL[key]||PANEL_POOL.chunk;
+  panels.push({x,y,text:pool[Math.floor(Math.random()*pool.length)],
+    life:1,dec:1.3,sc:0.3,rot:rnd(-0.28,0.28)});
 }
 
 // ── WAVE MANAGEMENT ───────────────────────────────────────────────────────────
-function startWave(idx) {
-  waveIdx = idx; clearTimer = 0;
-  const def  = WaveDefs[Math.min(idx, WaveDefs.length-1)];
-  const bonus = idx >= WaveDefs.length ? 1 + (idx-WaveDefs.length+1)*0.4 : 1;
-  queues = def.map(g=>({
-    t:g.t, rem:Math.round(g.n*bonus),
-    iv:g.iv/Math.max(1,bonus*0.75), timer:0,
-  }));
+function startWave(idx){
+  waveIdx=idx; clearTimer=0;
+  const def=WD[Math.min(idx,WD.length-1)];
+  const bonus=idx>=WD.length?1+(idx-WD.length+1)*0.4:1;
+  queues=def.map(g=>({t:g.t,rem:Math.round(g.n*bonus),iv:g.iv/Math.max(1,bonus*0.75),timer:0}));
 }
 
-// ── SHOOTING ──────────────────────────────────────────────────────────────────
-function shoot(tx,ty) {
+// ── SHOOT ─────────────────────────────────────────────────────────────────────
+function shoot(tx,ty){
   const m=Modes[modeIdx];
-  const dx=tx-TOWER_X, dy=ty-PIVOT_Y;
-  const d=Math.hypot(dx,dy)||1, a=Math.atan2(dy,dx);
+  const dx=tx-TOWER_X,dy=ty-PIVOT_Y,d=Math.hypot(dx,dy)||1,a=Math.atan2(dy,dx);
   projs.push({
-    x:TOWER_X+Math.cos(a)*BARREL_LEN, y:PIVOT_Y+Math.sin(a)*BARREL_LEN,
+    x:TOWER_X+Math.cos(a)*BLEN, y:PIVOT_Y+Math.sin(a)*BLEN,
     vx:(dx/d)*m.spd, vy:(dy/d)*m.spd,
-    dmg:m.dmg, splash:m.splash, r:m.pr,
-    clr:m.clr, mode:m.key, alive:true,
+    dmg:m.dmg, splash:m.splash, r:m.pr, clr:m.clr, mode:Modes[modeIdx].em, key:['chunk','auto','gas'][modeIdx],
+    alive:true,
   });
 }
 
-function bestTarget() {
-  if (!enemies.length) return null;
-  if (aimActive) {
-    const adx=Math.cos(aimAngle), ady=Math.sin(aimAngle);
-    let best=null, bestS=-Infinity;
-    for (const e of enemies) {
-      const dx=e.x-TOWER_X, dy=e.y-PIVOT_Y, d=Math.hypot(dx,dy)||1;
+function bestTarget(){
+  if(!enemies.length)return null;
+  if(aimActive){
+    const adx=Math.cos(aimAngle),ady=Math.sin(aimAngle);
+    let best=null,bestS=-Infinity;
+    for(const e of enemies){
+      const dx=e.x-TOWER_X,dy=e.y-PIVOT_Y,d=Math.hypot(dx,dy)||1;
       const s=(dx/d)*adx+(dy/d)*ady;
-      if (s>bestS){ bestS=s; best=e; }
+      if(s>bestS){bestS=s;best=e;}
     }
     return best;
   }
-  let nearest=null, nd=Infinity;
-  for (const e of enemies) {
-    const d=dist(TOWER_X,PIVOT_Y,e.x,e.y);
-    if (d<nd){ nd=d; nearest=e; }
-  }
+  let nearest=null,nd=Infinity;
+  for(const e of enemies){const d=dist(TOWER_X,PIVOT_Y,e.x,e.y);if(d<nd){nd=d;nearest=e;}}
   return nearest;
 }
 
-// ── ULTIMATE — Auto Flush ─────────────────────────────────────────────────────
-function triggerUltimate() {
-  if (ultActive) return;
-  ultActive=true; ultTimer=1.5;
-  shake(22,0.7);
-  let killed=0;
-  for (const e of enemies) {
-    gold+=e.reward; score+=e.reward; killed++;
+// ── ULTIMATE ──────────────────────────────────────────────────────────────────
+function triggerUlt(){
+  if(ultActive)return;
+  ultActive=true;ultTimer=1.8;
+  shake(25,0.75);
+  let n=0;
+  for(const e of enemies){
+    gold+=e.reward;score+=e.reward;n++;
     burst(e.x,e.y,e.clr,14,200,8);
-    burst(e.x,e.y,'#00ccff',8,160,5);
-    impactPanels.push({x:e.x,y:e.y,text:'FLUSH!',life:1,dec:1.2,sc:0.3,tSc:1.1,rot:rnd(-0.2,0.2)});
+    burst(e.x,e.y,'#00e0ff',6,150,5);
+    panels.push({x:e.x,y:e.y,text:'FLUSH!',life:1,dec:1.1,sc:0.3,rot:rnd(-0.2,0.2)});
   }
-  enemies=[];
-  pressure=0;
-  if (killed>0) floater(W/2, H/2-100, `PRESSURE RELEASE! +${killed*8} SLIME`, '#00ffcc');
+  enemies=[];pressure=0;
+  if(n>0)floater(W/2,H/2-80,`PRESSURE RELEASED! +${n*8}💰`,C.neonGreen);
 }
 
 // ── UPDATE ────────────────────────────────────────────────────────────────────
-function update(dt) {
-  if (gstate!=='playing') return;
-
+function update(dt){
+  if(gs!=='playing')return;
+  waterOffset=(waterOffset+dt*18)%(Math.PI*2);
   fireCd=Math.max(0,fireCd-dt);
-  if (shakeT>0){ shakeT-=dt; if(shakeT<=0)shakeI=0; }
-  if (vignetteA>0) vignetteA=Math.max(0,vignetteA-dt*3);
-  if (ultActive){ ultTimer-=dt; if(ultTimer<=0)ultActive=false; }
-
-  // Pressure auto-trigger at 100
-  if (pressure>=MAX_P && !ultActive) {
-    setTimeout(()=>{ if(pressure>=MAX_P) triggerUltimate(); }, 0);
-    return;
-  }
+  if(shakeT>0){shakeT-=dt;if(shakeT<=0)shakeI=0;}
+  if(vigA>0)vigA=Math.max(0,vigA-dt*3);
+  if(ultActive){ultTimer-=dt;if(ultTimer<=0)ultActive=false;}
+  if(pressure>=MAX_P&&!ultActive){setTimeout(()=>{if(pressure>=MAX_P)triggerUlt();},0);return;}
 
   // Spawn
-  for (const q of queues) {
-    if (q.rem<=0) continue;
+  for(const q of queues){
+    if(q.rem<=0)continue;
     q.timer+=dt;
-    while (q.timer>=q.iv && q.rem>0) {
-      q.timer-=q.iv; q.rem--;
-      const d=EDefs[q.t];
+    while(q.timer>=q.iv&&q.rem>0){
+      q.timer-=q.iv;q.rem--;
+      const d=ED[q.t];
       enemies.push({
-        t:q.t, x:rnd(40,W-40), y:rnd(-35,-5),
-        hp:d.maxHp, maxHp:d.maxHp,
-        spd:d.speed*rnd(0.88,1.12),
-        r:d.r, clr:d.clr, rim:d.rim,
-        reward:d.reward, pDmg:d.pDmg, pKill:d.pKill,
-        armor:d.armor||0,
-        wb:rnd(0,Math.PI*2), wbs:rnd(2,4), dead:false,
+        t:q.t,x:rnd(40,W-40),y:rnd(-38,-5),
+        hp:d.maxHp,maxHp:d.maxHp,spd:d.speed*rnd(0.88,1.12),
+        r:d.r,clr:d.clr,rim:d.rim,
+        reward:d.reward,pDmg:d.pDmg,pKill:d.pKill,armor:d.armor||0,
+        wb:rnd(0,Math.PI*2),wbs:rnd(2,4),dead:false,
       });
     }
   }
 
-  // Update enemies
-  for (const e of enemies) {
-    if (e.dead) continue;
+  // Enemies
+  for(const e of enemies){
+    if(e.dead)continue;
     e.wb+=e.wbs*dt;
-    const dx=TOWER_X-e.x, dy=TOWER_Y-e.y, d=Math.hypot(dx,dy)||1;
+    const dx=TOWER_X-e.x,dy=TOWER_Y-e.y,d=Math.hypot(dx,dy)||1;
     e.x+=(dx/d)*e.spd*dt; e.y+=(dy/d)*e.spd*dt;
-    if (d<e.r+30) {
+    if(d<e.r+32){
       pressure=clamp(pressure+e.pDmg,0,MAX_P);
       burst(e.x,e.y,e.clr,8,160,8);
-      burst(TOWER_X,TOWER_Y,'#ff4400',5,200,6);
-      shake(e.t==='bacteria'?14:7,0.35);
-      vignetteA=0.65;
-      impactPanels.push({x:TOWER_X+rnd(-40,40),y:TOWER_Y-60,
-        text:IMPACT_TEXTS.throne[Math.floor(Math.random()*IMPACT_TEXTS.throne.length)],
-        life:1,dec:1.2,sc:0.3,tSc:1.0,rot:rnd(-0.2,0.2)});
-      floater(TOWER_X,TOWER_Y-80,`+${e.pDmg}💀`,'#ff3300');
+      burst(TOWER_X,TOWER_Y,'#ff3300',6,200,6);
+      shake(e.t==='bacteria'?15:8,0.38);
+      vigA=0.72;
+      panels.push({x:TOWER_X+rnd(-45,45),y:TOWER_Y-70,
+        text:PANEL_POOL.throne[Math.floor(Math.random()*PANEL_POOL.throne.length)],
+        life:1,dec:1.2,sc:0.3,rot:rnd(-0.2,0.2)});
+      floater(TOWER_X,TOWER_Y-90,`+${e.pDmg}💀`,C.neonRed);
       e.dead=true;
-      if (pressure>=MAX_P) { gstate='game_over'; return; }
+      if(pressure>=MAX_P){gs='game_over';return;}
     }
   }
   enemies=enemies.filter(e=>!e.dead);
 
-  // Auto-fire toward target
+  // Aim + fire
   const tgt=bestTarget();
-  if (tgt) {
-    const ta=Math.atan2(tgt.y-PIVOT_Y,tgt.x-TOWER_X);
-    aimAngle=lerp(aimAngle,ta,0.18);
-    if (fireCd<=0) {
-      fireCd=1/Modes[modeIdx].rate;
-      shoot(tgt.x,tgt.y);
-    }
+  if(tgt){
+    aimAngle=lerp(aimAngle,Math.atan2(tgt.y-PIVOT_Y,tgt.x-TOWER_X),0.18);
+    if(fireCd<=0){fireCd=1/Modes[modeIdx].rate;shoot(tgt.x,tgt.y);}
   }
 
-  // Update projectiles
-  for (const p of projs) {
-    p.x+=p.vx*dt; p.y+=p.vy*dt;
-    if (p.x<-80||p.x>W+80||p.y<-150||p.y>H+80){ p.alive=false; continue; }
-    for (const e of enemies) {
-      if (e.dead) continue;
-      if (dist(p.x,p.y,e.x,e.y)<p.r+e.r) {
-        const actualDmg = p.dmg * (1 - e.armor);
-        e.hp-=actualDmg;
+  // Projectiles
+  for(const p of projs){
+    p.x+=p.vx*dt;p.y+=p.vy*dt;
+    if(p.x<-80||p.x>W+80||p.y<-160||p.y>H+80){p.alive=false;continue;}
+    for(const e of enemies){
+      if(e.dead)continue;
+      if(dist(p.x,p.y,e.x,e.y)<p.r+e.r){
+        const dmg=p.dmg*(1-e.armor);
+        e.hp-=dmg;
         burst(e.x,e.y,e.clr,5,130,5);
-        if (p.splash>0) {
-          if (p.mode==='gas') gasSplash(p.x,p.y,p.splash);
-          else splatSplash(p.x,p.y,p.splash);
+        if(p.splash>0){
+          p.key==='gas'?
+            (burst(p.x,p.y,'#22C55E',14,180,7),splatRing(p.x,p.y,p.splash,'rgba(30,160,0,0.35)')):
+            (burst(p.x,p.y,'#7B4020',16,200,7),splatRing(p.x,p.y,p.splash,'rgba(150,60,0,0.35)'));
           shake(9,0.28);
-          for (const e2 of enemies) {
-            if (!e2.dead && e2!==e && dist(p.x,p.y,e2.x,e2.y)<p.splash)
-              e2.hp-=p.dmg*(1-e2.armor)*0.6;
-          }
+          for(const e2 of enemies)
+            if(!e2.dead&&e2!==e&&dist(p.x,p.y,e2.x,e2.y)<p.splash)e2.hp-=p.dmg*(1-e2.armor)*0.6;
         }
         p.alive=false;
-        if (e.hp<=0) {
-          e.dead=true;
-          gold+=e.reward; score+=e.reward;
-          const pGain=Modes[modeIdx].pKill;
-          pressure=clamp(pressure+pGain,0,MAX_P);
-          burst(e.x,e.y,e.clr,13,185,8);
+        if(e.hp<=0){
+          e.dead=true;gold+=e.reward;score+=e.reward;
+          const pg=Modes[modeIdx].pKill;
+          pressure=clamp(pressure+pg,0,MAX_P);
+          burst(e.x,e.y,e.clr,13,190,8);
           burst(e.x,e.y,'#ffd700',5,140,4);
-          floater(e.x,e.y-8,`+${e.reward}💰`,'#ffd700');
-          floater(e.x+20,e.y-22,`+${pGain}💩`,'#88cc00');
-          impactPanel(e.x,e.y,p.mode);
+          floater(e.x,e.y-10,`+${e.reward}💰`,C.neonGold);
+          floater(e.x+22,e.y-26,`+${pg}💩`,C.neonGreen);
+          panel(e.x,e.y,p.key);
         }
         break;
       }
@@ -330,707 +307,756 @@ function update(dt) {
   projs  =projs.filter(p=>p.alive);
   enemies=enemies.filter(e=>!e.dead);
 
-  // Particles
-  for (const p of parts) {
-    p.x+=p.vx*dt; p.y+=p.vy*dt; p.vx*=0.9; p.vy*=0.9; p.life-=p.dec*dt;
-  }
+  for(const p of parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=0.9;p.vy*=0.9;p.life-=p.dec*dt;}
   parts=parts.filter(p=>p.life>0);
-
-  // Floaters
-  for (const f of floaters) {
-    f.y+=f.vy*dt; f.vy*=0.88; f.life-=f.dec*dt;
-  }
+  for(const f of floaters){f.y+=f.vy*dt;f.vy*=0.88;f.life-=f.dec*dt;}
   floaters=floaters.filter(f=>f.life>0);
+  for(const p of panels){p.sc=lerp(p.sc,1.0,0.22);p.life-=p.dec*dt;}
+  panels=panels.filter(p=>p.life>0);
 
-  // Impact panels
-  for (const p of impactPanels) {
-    p.sc=lerp(p.sc,p.tSc,0.25); p.life-=p.dec*dt;
-  }
-  impactPanels=impactPanels.filter(p=>p.life>0);
-
-  // Wave clear
-  if (queues.every(q=>q.rem<=0) && enemies.length===0) {
-    gstate='wave_clear'; clearTimer=3.0;
-  }
+  if(queues.every(q=>q.rem<=0)&&enemies.length===0){gs='wave_clear';clearTimer=3.2;}
 }
 
-// ── BACKGROUND — Sewer (GDD §8.2 Ch.1 palette) ───────────────────────────────
-function drawBg() {
-  ctx.fillStyle='#150a00';
-  ctx.fillRect(0,0,W,H);
+// ── DRAW: TOILET INTERIOR BACKGROUND ─────────────────────────────────────────
+function drawBg(){
+  // Outside-bowl dark fill
+  cx.fillStyle=C.bgOuter;
+  cx.fillRect(0,0,W,H);
 
-  // Sewer tile grid
-  ctx.strokeStyle='#221200'; ctx.lineWidth=0.5;
-  const gs=44;
-  for (let x=0;x<=W;x+=gs){ ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke(); }
-  for (let y=0;y<=H;y+=gs){ ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke(); }
+  // ── PORCELAIN BOWL INTERIOR ──
+  // Fill the play field area with dirty porcelain
+  cx.fillStyle=C.porcelain;
+  cx.fillRect(0,FIELD_TOP,W,FIELD_BOT-FIELD_TOP);
 
-  // Green sewer water puddles (GDD: "green sewer water accents")
-  ctx.globalAlpha=0.07;
-  ctx.fillStyle='#1a5a1a';
-  const puddles=[{x:80,y:280,rx:55,ry:18},{x:300,y:420,rx:45,ry:15},{x:170,y:520,rx:60,ry:20}];
-  for (const p of puddles) {
-    ctx.beginPath(); ctx.ellipse(p.x,p.y,p.rx,p.ry,0,0,Math.PI*2); ctx.fill();
+  // Bowl curvature: radial dark vignette on the edges (simulates curved ceramic walls)
+  const bCx=W/2, bCy=FIELD_TOP+(FIELD_BOT-FIELD_TOP)/2;
+  const bowlGr=cx.createRadialGradient(bCx,bCy,60,bCx,bCy,230);
+  bowlGr.addColorStop(0,  'rgba(255,248,220,0.18)');
+  bowlGr.addColorStop(0.6,'rgba(0,0,0,0)');
+  bowlGr.addColorStop(1,  'rgba(10,5,0,0.85)');
+  cx.fillStyle=bowlGr;
+  cx.fillRect(0,FIELD_TOP,W,FIELD_BOT-FIELD_TOP);
+
+  // Porcelain tile grout lines
+  cx.strokeStyle='rgba(140,110,60,0.25)'; cx.lineWidth=0.8;
+  for(let x=0;x<=W;x+=44){cx.beginPath();cx.moveTo(x,FIELD_TOP);cx.lineTo(x,FIELD_BOT);cx.stroke();}
+  for(let y=FIELD_TOP;y<=FIELD_BOT;y+=44){cx.beginPath();cx.moveTo(0,y);cx.lineTo(W,y);cx.stroke();}
+
+  // Old toilet stain RINGS (concentric ovals at 30%, 55%, 75% from center)
+  const stainCy = bCy+40;
+  for(let i=0;i<3;i++){
+    const t=0.3+i*0.22;
+    const rx=W*t*0.48, ry=(FIELD_BOT-FIELD_TOP)*t*0.46;
+    cx.strokeStyle=`rgba(100,70,20,${0.18-i*0.04})`;
+    cx.lineWidth=3+i*2;
+    cx.beginPath(); cx.ellipse(W/2,stainCy,rx,ry,0,0,Math.PI*2); cx.stroke();
   }
-  ctx.globalAlpha=1;
 
-  // Rusted pipe markings at spawn zone (top)
-  ctx.strokeStyle='rgba(120,60,0,0.3)'; ctx.lineWidth=6; ctx.lineCap='round';
-  const pipeX=[50,120,200,270,340];
-  for (const px of pipeX) {
-    ctx.beginPath(); ctx.moveTo(px,0); ctx.lineTo(px,24); ctx.stroke();
-    ctx.fillStyle='rgba(120,60,0,0.25)';
-    ctx.beginPath(); ctx.arc(px,8,8,0,Math.PI*2); ctx.fill();
+  // Grime streaks from top (dripping from drain)
+  cx.strokeStyle='rgba(80,50,10,0.22)'; cx.lineWidth=2;
+  const drips=[75,130,195,260,315];
+  for(const dx of drips){
+    cx.beginPath(); cx.moveTo(dx,FIELD_TOP+30);
+    cx.bezierCurveTo(dx+rnd(-15,15),FIELD_TOP+80,dx+rnd(-15,15),FIELD_TOP+140,dx+rnd(-10,10),FIELD_TOP+180);
+    cx.stroke();
   }
 
-  // Grime drips on walls
-  ctx.strokeStyle='rgba(40,20,0,0.4)'; ctx.lineWidth=2;
-  for (let i=0;i<6;i++) {
-    const dx=i*60+20, dy=FIELD_TOP+30+i*20;
-    ctx.beginPath(); ctx.moveTo(dx,FIELD_TOP); ctx.lineTo(dx+rnd(-5,5)*0,dy); ctx.stroke();
+  // ── DRAIN PIPE at top center (where enemies come from) ──
+  const drainY=FIELD_TOP+50, drainRx=52, drainRy=32;
+  // Outer rust ring
+  cx.fillStyle='rgba(80,40,0,0.7)';
+  cx.beginPath(); cx.ellipse(W/2,drainY,drainRx+10,drainRy+7,0,0,Math.PI*2); cx.fill();
+  // Pipe body
+  cx.fillStyle='#3d1e00';
+  cx.beginPath(); cx.ellipse(W/2,drainY,drainRx,drainRy,0,0,Math.PI*2); cx.fill();
+  // Inner dark hole
+  cx.fillStyle=C.drain;
+  cx.beginPath(); cx.ellipse(W/2,drainY,drainRx-8,drainRy-6,0,0,Math.PI*2); cx.fill();
+  // Pipe grate bars
+  cx.strokeStyle='rgba(30,15,0,0.9)'; cx.lineWidth=3;
+  for(let i=-2;i<=2;i++){
+    const gx=W/2+i*14;
+    cx.beginPath(); cx.moveTo(gx,drainY-drainRy+6); cx.lineTo(gx,drainY+drainRy-6); cx.stroke();
+  }
+  cx.beginPath(); cx.moveTo(W/2-drainRx+8,drainY-10); cx.lineTo(W/2+drainRx-8,drainY-10); cx.stroke();
+  cx.beginPath(); cx.moveTo(W/2-drainRx+8,drainY+8);  cx.lineTo(W/2+drainRx-8,drainY+8);  cx.stroke();
+  // Drip from drain hole
+  cx.fillStyle='rgba(30,50,10,0.4)';
+  for(let i=0;i<4;i++){
+    const drip_x=W/2+(i-1.5)*18;
+    cx.beginPath(); cx.ellipse(drip_x,drainY+drainRy+8+i*3,2,4+i*2,0,0,Math.PI*2); cx.fill();
   }
 
-  // Warm glow toward throne
-  const gr=ctx.createRadialGradient(TOWER_X,TOWER_Y,20,TOWER_X,TOWER_Y,300);
-  gr.addColorStop(0,'rgba(80,45,0,0.12)'); gr.addColorStop(1,'rgba(0,0,0,0)');
-  ctx.fillStyle=gr; ctx.fillRect(0,0,W,H);
+  // ── SEWER WATER (lower section) ──
+  // Water body
+  cx.fillStyle=C.water;
+  cx.fillRect(0,WATER_Y+8,W,FIELD_BOT-WATER_Y-8);
+
+  // Animated wavy water surface
+  cx.fillStyle=C.waterSurf;
+  cx.beginPath();
+  cx.moveTo(0,WATER_Y+8);
+  for(let x=0;x<=W;x+=4){
+    const y=WATER_Y+Math.sin((x*0.04)+waterOffset)*5+Math.sin((x*0.07)+waterOffset*1.4)*3;
+    cx.lineTo(x,y);
+  }
+  cx.lineTo(W,FIELD_BOT); cx.lineTo(0,FIELD_BOT); cx.closePath(); cx.fill();
+
+  // Foam / scum at water surface
+  cx.strokeStyle=C.waterFoam; cx.lineWidth=2;
+  cx.beginPath();
+  for(let x=0;x<=W;x+=4){
+    const y=WATER_Y+Math.sin((x*0.04)+waterOffset)*5+Math.sin((x*0.07)+waterOffset*1.4)*3;
+    x===0?cx.moveTo(x,y):cx.lineTo(x,y);
+  }
+  cx.stroke();
+
+  // Murky water depth gradient
+  const waterGr=cx.createLinearGradient(0,WATER_Y,0,FIELD_BOT);
+  waterGr.addColorStop(0,'rgba(0,0,0,0)');
+  waterGr.addColorStop(1,'rgba(0,0,0,0.5)');
+  cx.fillStyle=waterGr; cx.fillRect(0,WATER_Y,W,FIELD_BOT-WATER_Y);
+
+  // Floating debris in water
+  cx.fillStyle='rgba(40,60,20,0.5)';
+  const debris=[{x:60,y:WATER_Y+28},{x:150,y:WATER_Y+18},{x:280,y:WATER_Y+35},{x:330,y:WATER_Y+22}];
+  for(const d of debris){
+    const dx=d.x+Math.sin(waterOffset+d.x)*4;
+    cx.beginPath(); cx.ellipse(dx,d.y,8,3,0.3,0,Math.PI*2); cx.fill();
+  }
+
+  // ── PORCELAIN RIM highlights on side walls ──
+  const leftGr=cx.createLinearGradient(0,0,28,0);
+  leftGr.addColorStop(0,'rgba(8,4,0,0.92)');
+  leftGr.addColorStop(0.45,'rgba(210,185,130,0.25)');
+  leftGr.addColorStop(1,'rgba(0,0,0,0)');
+  cx.fillStyle=leftGr; cx.fillRect(0,FIELD_TOP,28,FIELD_BOT-FIELD_TOP);
+
+  const rightGr=cx.createLinearGradient(W,0,W-28,0);
+  rightGr.addColorStop(0,'rgba(8,4,0,0.92)');
+  rightGr.addColorStop(0.45,'rgba(210,185,130,0.25)');
+  rightGr.addColorStop(1,'rgba(0,0,0,0)');
+  cx.fillStyle=rightGr; cx.fillRect(W-28,FIELD_TOP,28,FIELD_BOT-FIELD_TOP);
 }
 
-// ── TOILET THRONE (GDD §3.1 "ceramic toilet-throne") ────────────────────────
-function drawTower() {
+// ── DRAW: BIG ASS CANNON ──────────────────────────────────────────────────────
+function drawCannon(){
   const tx=TOWER_X, ty=TOWER_Y;
 
-  // Platform shadow
-  ctx.fillStyle='rgba(0,0,0,0.45)';
-  ctx.beginPath(); ctx.ellipse(tx,ty+22,56,15,0,0,Math.PI*2); ctx.fill();
+  // Water reflection of cannon (distorted ellipse in water)
+  cx.globalAlpha=0.18;
+  cx.fillStyle='#4a2008';
+  cx.beginPath(); cx.ellipse(tx,ty+30,40,12,0,0,Math.PI*2); cx.fill();
+  cx.globalAlpha=1;
 
-  // ── TOILET TANK (back) ──
-  // Tank body
-  rRect(tx-26,ty-78,52,52,5,'#e8dcc0','#9B8840',2.5);
-  // Tank lid (slightly wider)
-  rRect(tx-28,ty-86,56,14,4,'#d8cca8','#9B8840',2);
-  // Flush button / chain
-  ctx.fillStyle='#c8a414';
-  ctx.beginPath(); ctx.arc(tx+14,ty-56,5,0,Math.PI*2); ctx.fill();
-  ctx.strokeStyle='#c8a414'; ctx.lineWidth=2;
-  ctx.beginPath(); ctx.moveTo(tx+14,ty-51); ctx.lineTo(tx+14,ty-32); ctx.stroke();
-  // Brand text on tank
-  ctx.fillStyle='rgba(140,100,40,0.4)';
-  ctx.font='bold 8px Arial'; ctx.textAlign='center';
-  ctx.fillText('POOPATHON', tx, ty-54);
+  // ── PEDESTAL BASE (sitting in water) ──
+  // Sub-base (wider, darker — submerged part)
+  cx.fillStyle=darken(C.cannonMetal,0.2);
+  cx.beginPath(); cx.ellipse(tx,ty+14,58,20,0,0,Math.PI*2); cx.fill();
 
-  // ── TOILET BOWL ──
-  // Outer bowl (porcelain)
-  ctx.fillStyle='#e8dcc0'; ctx.strokeStyle='#9B8840'; ctx.lineWidth=2.5;
-  ctx.beginPath(); ctx.ellipse(tx,ty+6,38,16,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
-  // Inner water (GDD Chapter 1: green sewer water)
-  ctx.fillStyle='#2a6030';
-  ctx.beginPath(); ctx.ellipse(tx,ty+6,25,10,0,0,Math.PI*2); ctx.fill();
-  // Water glint
-  ctx.fillStyle='rgba(100,200,120,0.2)';
-  ctx.beginPath(); ctx.ellipse(tx-6,ty+3,10,4,Math.PI*0.15,0,Math.PI*2); ctx.fill();
+  // Main base disc
+  cx.fillStyle=C.cannonMetal; cx.strokeStyle=C.cannonLight; cx.lineWidth=3;
+  cx.beginPath(); cx.ellipse(tx,ty+4,54,18,0,0,Math.PI*2); cx.fill(); cx.stroke();
 
-  // ── TOILET SEAT ──
-  ctx.strokeStyle='#b8a870'; ctx.lineWidth=4; ctx.fillStyle='rgba(0,0,0,0)';
-  ctx.beginPath(); ctx.ellipse(tx,ty-4,36,14,0,0,Math.PI*2);
-  ctx.stroke();
+  // Pedestal body
+  rRect(tx-30,ty-42,60,48,6,C.cannonMetal,C.cannonMid,2.5);
 
-  // ── CANNON BARREL ──
-  ctx.save();
-  ctx.translate(TOWER_X,PIVOT_Y);
-  ctx.rotate(aimAngle);
-  // Base ring at pivot
-  rRect(-4,-7,12,14,3,'#4a2400','#2a1200',1.5);
-  // Barrel pipe
-  rRect(6,-5,BARREL_LEN-6,10,3,'#3a1800','#1a0800',1.5);
-  // Muzzle cap
-  ctx.fillStyle='#5a2800'; ctx.strokeStyle='#8a4a00'; ctx.lineWidth=2;
-  ctx.beginPath(); ctx.arc(BARREL_LEN,0,8,0,Math.PI*2); ctx.fill(); ctx.stroke();
-  // Muzzle hole
-  ctx.fillStyle='#0d0500';
-  ctx.beginPath(); ctx.arc(BARREL_LEN,0,4,0,Math.PI*2); ctx.fill();
-  // Fire flash
+  // Pedestal decorative rings
+  for(let i=0;i<3;i++){
+    const ry=ty-10-i*12;
+    cx.fillStyle=C.cannonMid;
+    cx.beginPath(); cx.ellipse(tx,ry,30,6,0,0,Math.PI*2); cx.fill();
+    cx.strokeStyle=C.cannonLight; cx.lineWidth=1.5;
+    cx.stroke();
+  }
+
+  // ── CANNON PIVOT CAP ──
+  cx.fillStyle='#5a2c0c'; cx.strokeStyle=C.cannonLight; cx.lineWidth=2.5;
+  cx.beginPath(); cx.arc(tx,PIVOT_Y,16,0,Math.PI*2); cx.fill(); cx.stroke();
+  cx.fillStyle=darken(C.cannonMetal,0.2);
+  cx.beginPath(); cx.arc(tx,PIVOT_Y,8,0,Math.PI*2); cx.fill();
+
+  // ── BARREL — TAPERED, BIG ASS ──
+  cx.save();
+  cx.translate(tx,PIVOT_Y);
+  cx.rotate(aimAngle);
+
+  // Barrel shadow (offset)
+  cx.globalAlpha=0.3;
+  cx.fillStyle='rgba(0,0,0,0.6)';
+  cx.beginPath();
+  cx.moveTo(3, BBASE+2);
+  cx.lineTo(BLEN+2, BTIP+2);
+  cx.lineTo(BLEN+2, -BTIP+2);
+  cx.lineTo(3, -BBASE+2);
+  cx.closePath();
+  cx.fill();
+  cx.globalAlpha=1;
+
+  // ── BARREL BODY (tapered trapezoid) ──
+  // Dark metal gradient
+  const barrelGr=cx.createLinearGradient(0,-BBASE,0,BBASE);
+  barrelGr.addColorStop(0,C.cannonLight);
+  barrelGr.addColorStop(0.35,darken(C.cannonMetal,0.1));
+  barrelGr.addColorStop(0.65,darken(C.cannonMetal,0.1));
+  barrelGr.addColorStop(1,C.cannonLight);
+  cx.fillStyle=barrelGr;
+  cx.beginPath();
+  cx.moveTo(0,  BBASE);
+  cx.lineTo(BLEN, BTIP);
+  cx.lineTo(BLEN,-BTIP);
+  cx.lineTo(0,  -BBASE);
+  cx.closePath(); cx.fill();
+
+  // Barrel edge stroke
+  cx.strokeStyle=C.cannonMid; cx.lineWidth=2;
+  cx.beginPath();
+  cx.moveTo(0,  BBASE); cx.lineTo(BLEN, BTIP);
+  cx.moveTo(0, -BBASE); cx.lineTo(BLEN,-BTIP);
+  cx.stroke();
+
+  // ── REINFORCEMENT BANDS (3 rings) ──
+  const bands=[0.25,0.5,0.72];
+  for(const t of bands){
+    const bx=BLEN*t;
+    const bw=lerp(BBASE,BTIP,t)+4; // slightly wider than barrel at this point
+    cx.fillStyle=C.cannonMid; cx.strokeStyle=C.cannonLight; cx.lineWidth=1.5;
+    cx.beginPath(); cx.ellipse(bx,0,bw*0.45,bw,0,0,Math.PI*2); cx.fill(); cx.stroke();
+  }
+
+  // ── MUZZLE CAP ──
+  cx.fillStyle='#3a1c06'; cx.strokeStyle=C.cannonLight; cx.lineWidth=2.5;
+  cx.beginPath(); cx.arc(BLEN,0,BTIP+7,0,Math.PI*2); cx.fill(); cx.stroke();
+  // Inner barrel hole
+  cx.fillStyle='#080300';
+  cx.beginPath(); cx.arc(BLEN,0,BTIP-1,0,Math.PI*2); cx.fill();
+
+  // ── BARREL HIGHLIGHT (top edge shine) ──
+  cx.strokeStyle='rgba(255,200,120,0.25)'; cx.lineWidth=2;
+  cx.beginPath(); cx.moveTo(8,-BBASE+3); cx.lineTo(BLEN-4,-BTIP+3); cx.stroke();
+
+  // ── MUZZLE FLASH ──
   const m=Modes[modeIdx];
-  if (fireCd>0 && fireCd>(1/m.rate)*0.6) {
-    ctx.globalAlpha=Math.min(1,fireCd*4);
-    ctx.fillStyle=m.clr;
-    ctx.beginPath(); ctx.arc(BARREL_LEN,0,15,0,Math.PI*2); ctx.fill();
-    ctx.globalAlpha=1;
-  }
-  ctx.restore();
-
-  // ── PRESSURE CRACKS + GLOW ──
-  if (pressure>60) {
-    const a=(pressure-60)/40;
-    // Red crack vines on tank
-    ctx.strokeStyle=`rgba(200,0,0,${a*0.55})`; ctx.lineWidth=1.2;
-    ctx.beginPath();
-    ctx.moveTo(tx-12,ty-78); ctx.lineTo(tx+4,ty-55);
-    ctx.moveTo(tx+16,ty-74); ctx.lineTo(tx+8,ty-42);
-    ctx.moveTo(tx-6,ty-62); ctx.lineTo(tx-18,ty-46);
-    ctx.stroke();
-    // Ambient pressure glow
-    const gr=ctx.createRadialGradient(tx,ty-30,15,tx,ty-30,80+pressure*0.5);
-    gr.addColorStop(0,`rgba(255,0,0,${a*0.22})`);
-    gr.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.fillStyle=gr; ctx.fillRect(tx-100,ty-120,200,150);
+  const flashRatio=fireCd>0?Math.min(1,fireCd*4*(m.rate<1?m.rate:1)):0;
+  if(flashRatio>0.05){
+    // Outer glow
+    cx.globalAlpha=flashRatio*0.6;
+    const fGr=cx.createRadialGradient(BLEN,0,0,BLEN,0,36);
+    fGr.addColorStop(0,m.clr); fGr.addColorStop(1,'rgba(0,0,0,0)');
+    cx.fillStyle=fGr; cx.beginPath(); cx.arc(BLEN,0,36,0,Math.PI*2); cx.fill();
+    // Core flash
+    cx.globalAlpha=flashRatio;
+    cx.fillStyle=m.clr;
+    cx.beginPath(); cx.arc(BLEN,0,18,0,Math.PI*2); cx.fill();
+    cx.fillStyle='rgba(255,255,255,0.8)';
+    cx.beginPath(); cx.arc(BLEN,0,8,0,Math.PI*2); cx.fill();
+    cx.globalAlpha=1;
   }
 
-  // ── ULTIMATE READY INDICATOR ──
-  if (pressure>=MAX_P && !ultActive) {
-    const pulse=(Math.sin(Date.now()*0.006)*0.5+0.5);
-    ctx.strokeStyle=`rgba(0,255,200,${0.6+pulse*0.4})`;
-    ctx.lineWidth=3+pulse*2;
-    ctx.beginPath(); ctx.arc(tx,ty-30,55+pulse*8,0,Math.PI*2); ctx.stroke();
-    ctx.fillStyle=`rgba(0,255,200,${0.8+pulse*0.2})`;
-    ctx.font='bold 13px "Arial Black",Arial';
-    ctx.textAlign='center';
-    ctx.fillText('★ RELEASE PRESSURE ★',tx,ty-108);
+  cx.restore();
+
+  // ── PRESSURE CRACKS on pedestal ──
+  if(pressure>65){
+    const ca=(pressure-65)/35;
+    cx.strokeStyle=`rgba(220,38,38,${ca*0.65})`; cx.lineWidth=1.5;
+    cx.beginPath();
+    cx.moveTo(tx-18,ty-30); cx.lineTo(tx-4,ty-10);
+    cx.moveTo(tx+20,ty-28); cx.lineTo(tx+8,ty-8);
+    cx.moveTo(tx-8, ty-42); cx.lineTo(tx-24,ty-24);
+    cx.stroke();
+  }
+
+  // ── STEAM VENTS at high pressure ──
+  if(pressure>80){
+    const sv=(pressure-80)/20;
+    const t=Date.now()*0.003;
+    cx.globalAlpha=sv*0.55;
+    for(let i=0;i<4;i++){
+      const sx=tx+(i%2===0?-1:1)*(22+Math.floor(i/2)*12);
+      const sy=ty-35;
+      for(let j=0;j<3;j++){
+        cx.fillStyle=`rgba(180,180,180,${0.4-j*0.12})`;
+        cx.beginPath();
+        cx.arc(sx+Math.sin(t+j)*4, sy-(j*12)+Math.sin(t*1.5)*3, 4+j*2, 0, Math.PI*2);
+        cx.fill();
+      }
+    }
+    cx.globalAlpha=1;
+  }
+
+  // ── ULTIMATE READY PULSE ──
+  if(pressure>=MAX_P&&!ultActive){
+    const pulse=(Math.sin(Date.now()*0.007)*0.5+0.5);
+    cx.strokeStyle=`rgba(0,224,200,${0.55+pulse*0.45})`;
+    cx.lineWidth=4+pulse*3;
+    cx.shadowColor='#00e0c8'; cx.shadowBlur=20;
+    cx.beginPath(); cx.arc(tx,PIVOT_Y,62+pulse*10,0,Math.PI*2); cx.stroke();
+    cx.shadowBlur=0;
+    cx.fillStyle=`rgba(0,224,200,${0.85+pulse*0.15})`;
+    cx.font='bold 14px Orbitron,Arial';
+    cx.textAlign='center';
+    cx.strokeStyle='rgba(0,40,30,0.8)'; cx.lineWidth=3;
+    cx.strokeText('★ FLUSH! ★',tx,PIVOT_Y-80);
+    cx.fillText('★ FLUSH! ★',tx,PIVOT_Y-80);
   }
 }
 
-// ── ENEMY DRAW FUNCTIONS ──────────────────────────────────────────────────────
-function drawVirusEnemy(e) {
-  const wx=Math.sin(e.wb)*1.8, wy=Math.cos(e.wb*0.8)*1.4;
-  const cx=e.x+wx, cy=e.y+wy;
-
-  // Spike protrusions (GDD: "spike protrusions; reads as angry germ")
-  const nSpikes=7;
-  ctx.fillStyle=e.rim;
-  for (let i=0;i<nSpikes;i++) {
-    const a=(i/nSpikes)*Math.PI*2+e.wb*0.25;
-    const tip={x:cx+Math.cos(a)*(e.r+8),y:cy+Math.sin(a)*(e.r+8)};
-    const left={x:cx+Math.cos(a-0.32)*e.r,y:cy+Math.sin(a-0.32)*e.r};
-    const right={x:cx+Math.cos(a+0.32)*e.r,y:cy+Math.sin(a+0.32)*e.r};
-    ctx.beginPath(); ctx.moveTo(left.x,left.y); ctx.lineTo(tip.x,tip.y); ctx.lineTo(right.x,right.y); ctx.closePath(); ctx.fill();
+// ── DRAW: ENEMIES ─────────────────────────────────────────────────────────────
+function drawVirus(e){
+  const wx=Math.sin(e.wb)*2,wy=Math.cos(e.wb*0.8)*1.5;
+  const ex=e.x+wx,ey=e.y+wy;
+  // Spikes
+  cx.fillStyle=e.rim;
+  for(let i=0;i<8;i++){
+    const a=(i/8)*Math.PI*2+e.wb*0.22;
+    const tip={x:ex+Math.cos(a)*(e.r+9),y:ey+Math.sin(a)*(e.r+9)};
+    const L={x:ex+Math.cos(a-0.3)*e.r,y:ey+Math.sin(a-0.3)*e.r};
+    const R={x:ex+Math.cos(a+0.3)*e.r,y:ey+Math.sin(a+0.3)*e.r};
+    cx.beginPath();cx.moveTo(L.x,L.y);cx.lineTo(tip.x,tip.y);cx.lineTo(R.x,R.y);cx.closePath();cx.fill();
   }
-
   // Body
-  ctx.fillStyle=e.clr; ctx.strokeStyle=e.rim; ctx.lineWidth=2.5;
-  ctx.beginPath(); ctx.arc(cx,cy,e.r,0,Math.PI*2); ctx.fill(); ctx.stroke();
-  // Highlight
-  ctx.fillStyle='rgba(255,255,255,0.18)';
-  ctx.beginPath(); ctx.arc(cx-e.r*0.28,cy-e.r*0.3,e.r*0.42,0,Math.PI*2); ctx.fill();
-  // Central angry eye
-  ctx.fillStyle='#cc2200';
-  ctx.beginPath(); ctx.arc(cx,cy,e.r*0.38,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='#ff6600';
-  ctx.beginPath(); ctx.arc(cx-1,cy-1.5,e.r*0.18,0,Math.PI*2); ctx.fill();
-  // Angry eyebrow lines
-  ctx.strokeStyle='#cc2200'; ctx.lineWidth=1.5;
-  ctx.beginPath(); ctx.moveTo(cx-e.r*0.3,cy-e.r*0.6); ctx.lineTo(cx-e.r*0.05,cy-e.r*0.45); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(cx+e.r*0.3,cy-e.r*0.6); ctx.lineTo(cx+e.r*0.05,cy-e.r*0.45); ctx.stroke();
+  cx.fillStyle=e.clr;cx.strokeStyle=e.rim;cx.lineWidth=2.5;
+  cx.beginPath();cx.arc(ex,ey,e.r,0,Math.PI*2);cx.fill();cx.stroke();
+  cx.fillStyle='rgba(255,255,255,0.2)';
+  cx.beginPath();cx.arc(ex-e.r*0.3,ey-e.r*0.32,e.r*0.44,0,Math.PI*2);cx.fill();
+  // Angry central eye
+  cx.fillStyle='#cc1100';
+  cx.beginPath();cx.arc(ex,ey,e.r*0.4,0,Math.PI*2);cx.fill();
+  cx.fillStyle='#ff6600';
+  cx.beginPath();cx.arc(ex-1,ey-2,e.r*0.2,0,Math.PI*2);cx.fill();
+  cx.strokeStyle='#cc1100';cx.lineWidth=1.5;
+  cx.beginPath();cx.moveTo(ex-e.r*0.32,ey-e.r*0.62);cx.lineTo(ex-e.r*0.06,ey-e.r*0.46);cx.stroke();
+  cx.beginPath();cx.moveTo(ex+e.r*0.32,ey-e.r*0.62);cx.lineTo(ex+e.r*0.06,ey-e.r*0.46);cx.stroke();
 }
 
-function drawWormEnemy(e) {
-  // Direction toward throne for segmented body (GDD: "long segmented worm")
-  const dx=TOWER_X-e.x, dy=TOWER_Y-e.y, d=Math.hypot(dx,dy)||1;
-  const nx=dx/d, ny=dy/d;
-  const nSegs=4, segSpc=e.r*1.35;
-
-  // Segments from tail to head
-  for (let s=nSegs-1;s>=0;s--) {
-    const ox=e.x-nx*s*segSpc, oy=e.y-ny*s*segSpc;
-    const swx=Math.sin(e.wb+s*0.9)*3, swy=Math.cos(e.wb*0.7+s)*2;
-    const segR=e.r*(s===0?1:0.84-s*0.04);
-    const segClr=s===0?e.clr:darken(e.clr,0.15*s);
-    ctx.fillStyle=segClr; ctx.strokeStyle=e.rim; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.arc(ox+swx,oy+swy,segR,0,Math.PI*2); ctx.fill(); ctx.stroke();
-    // Segment highlight
-    ctx.fillStyle='rgba(255,255,255,0.1)';
-    ctx.beginPath(); ctx.arc(ox+swx-segR*0.25,oy+swy-segR*0.28,segR*0.4,0,Math.PI*2); ctx.fill();
+function drawWorm(e){
+  const dx=TOWER_X-e.x,dy=TOWER_Y-e.y,d=Math.hypot(dx,dy)||1;
+  const nx=dx/d,ny=dy/d;
+  const nSegs=5,spc=e.r*1.3;
+  for(let s=nSegs-1;s>=0;s--){
+    const ox=e.x-nx*s*spc,oy=e.y-ny*s*spc;
+    const sw=Math.sin(e.wb+s*0.85)*3.5,sh=Math.cos(e.wb*0.7+s)*2.5;
+    const sr=e.r*(s===0?1.0:0.86-s*0.045);
+    cx.fillStyle=s===0?e.clr:darken(e.clr,0.14*s);
+    cx.strokeStyle=e.rim;cx.lineWidth=2;
+    cx.beginPath();cx.arc(ox+sw,oy+sh,sr,0,Math.PI*2);cx.fill();cx.stroke();
+    cx.fillStyle='rgba(255,255,255,0.12)';
+    cx.beginPath();cx.arc(ox+sw-sr*0.28,oy+sh-sr*0.3,sr*0.42,0,Math.PI*2);cx.fill();
   }
-  // Head eyes
-  const hwx=Math.sin(e.wb)*2, hwy=Math.cos(e.wb*0.7)*1.5;
-  const ew=e.r*0.22, eo=e.r*0.28;
-  ctx.fillStyle='#fff';
-  ctx.beginPath(); ctx.arc(e.x+hwx-eo,e.y+hwy-eo*0.5,ew,0,Math.PI*2); ctx.arc(e.x+hwx+eo,e.y+hwy-eo*0.5,ew,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='#1a0000';
-  ctx.beginPath(); ctx.arc(e.x+hwx-eo,e.y+hwy-eo*0.5,ew*0.52,0,Math.PI*2); ctx.arc(e.x+hwx+eo,e.y+hwy-eo*0.5,ew*0.52,0,Math.PI*2); ctx.fill();
+  const hw=Math.sin(e.wb)*2,hh=Math.cos(e.wb*0.7)*1.5;
+  const ew=e.r*0.24,eo=e.r*0.3;
+  cx.fillStyle='#fff';
+  cx.beginPath();cx.arc(e.x+hw-eo,e.y+hh-eo*0.5,ew,0,Math.PI*2);
+  cx.arc(e.x+hw+eo,e.y+hh-eo*0.5,ew,0,Math.PI*2);cx.fill();
+  cx.fillStyle='#1a0000';
+  cx.beginPath();cx.arc(e.x+hw-eo,e.y+hh-eo*0.5,ew*0.52,0,Math.PI*2);
+  cx.arc(e.x+hw+eo,e.y+hh-eo*0.5,ew*0.52,0,Math.PI*2);cx.fill();
 }
 
-function drawBacteriaEnemy(e) {
-  // GDD: "Fat bulbous body, short stubby limbs, visible nucleus bump; reads as armored tank"
-  const wx=Math.sin(e.wb)*2, wy=Math.cos(e.wb*0.7)*1.5;
-  const cx=e.x+wx, cy=e.y+wy;
-
-  // Shadow
-  ctx.fillStyle='rgba(0,0,0,0.3)';
-  ctx.beginPath(); ctx.ellipse(cx,cy+e.r,e.r*0.9,e.r*0.28,0,0,Math.PI*2); ctx.fill();
-
-  // Armor ring (GDD: "Armor — High — reduces all damage by 45%")
-  ctx.strokeStyle='#c8b840'; ctx.lineWidth=4;
-  ctx.setLineDash([9,5]);
-  ctx.beginPath(); ctx.arc(cx,cy,e.r+5,0,Math.PI*2); ctx.stroke();
-  ctx.setLineDash([]);
-
+function drawBacteria(e){
+  const wx=Math.sin(e.wb)*2.2,wy=Math.cos(e.wb*0.7)*1.8;
+  const ex=e.x+wx,ey=e.y+wy;
+  // Animated armor ring
+  const armRot=Date.now()*0.001;
+  cx.strokeStyle='#d4c040';cx.lineWidth=4;
+  cx.setLineDash([10,5]);cx.lineDashOffset=-armRot*30;
+  cx.beginPath();cx.arc(ex,ey,e.r+6,0,Math.PI*2);cx.stroke();
+  cx.setLineDash([]);
   // Body
-  ctx.fillStyle=e.clr; ctx.strokeStyle=e.rim; ctx.lineWidth=3;
-  ctx.beginPath(); ctx.arc(cx,cy,e.r,0,Math.PI*2); ctx.fill(); ctx.stroke();
-
+  cx.fillStyle=e.clr;cx.strokeStyle=e.rim;cx.lineWidth=3;
+  cx.beginPath();cx.arc(ex,ey,e.r,0,Math.PI*2);cx.fill();cx.stroke();
   // Stubby limbs
-  const limbA=[-0.55,0.55,Math.PI-0.55,Math.PI+0.55];
-  ctx.fillStyle=darken(e.clr,0.28);
-  for (const a of limbA) {
-    ctx.beginPath();
-    ctx.ellipse(cx+Math.cos(a)*(e.r-3),cy+Math.sin(a)*(e.r-3),6,3.5,a,0,Math.PI*2);
-    ctx.fill();
+  const limbs=[-0.55,0.55,Math.PI-0.55,Math.PI+0.55];
+  cx.fillStyle=darken(e.clr,0.3);
+  for(const a of limbs){
+    cx.beginPath();cx.ellipse(ex+Math.cos(a)*(e.r-3),ey+Math.sin(a)*(e.r-3),6.5,3.5,a,0,Math.PI*2);cx.fill();
   }
-
-  // Highlight
-  ctx.fillStyle='rgba(255,255,255,0.15)';
-  ctx.beginPath(); ctx.arc(cx-e.r*0.28,cy-e.r*0.3,e.r*0.5,0,Math.PI*2); ctx.fill();
-
-  // Nucleus bump (GDD: "visible nucleus bump")
-  ctx.fillStyle='#ffdd80'; ctx.strokeStyle='#c8a040'; ctx.lineWidth=1.5;
-  ctx.beginPath(); ctx.arc(cx+4,cy-4,e.r*0.32,0,Math.PI*2); ctx.fill(); ctx.stroke();
-  // Nucleus inner dot
-  ctx.fillStyle='#aa7020';
-  ctx.beginPath(); ctx.arc(cx+4,cy-4,e.r*0.14,0,Math.PI*2); ctx.fill();
-
-  // ARMOR label
-  ctx.fillStyle='rgba(200,184,64,0.9)';
-  ctx.font='bold 7px Arial'; ctx.textAlign='center';
-  ctx.fillText('ARMOR', cx, cy+e.r+16);
+  cx.fillStyle='rgba(255,255,255,0.14)';
+  cx.beginPath();cx.arc(ex-e.r*0.3,ey-e.r*0.32,e.r*0.52,0,Math.PI*2);cx.fill();
+  // Nucleus
+  cx.fillStyle='#ffdd80';cx.strokeStyle='#c8a040';cx.lineWidth=1.5;
+  cx.beginPath();cx.arc(ex+4,ey-5,e.r*0.34,0,Math.PI*2);cx.fill();cx.stroke();
+  cx.fillStyle='#aa6010';
+  cx.beginPath();cx.arc(ex+4,ey-5,e.r*0.15,0,Math.PI*2);cx.fill();
+  // ARMOR text
+  cx.fillStyle='rgba(212,192,64,0.95)';cx.font='bold 8px JetBrains Mono,monospace';cx.textAlign='center';
+  cx.fillText('ARMORED',ex,ey+e.r+18);
 }
 
-function drawEnemy(e) {
-  // Shadow
-  ctx.fillStyle='rgba(0,0,0,0.25)';
-  ctx.beginPath(); ctx.ellipse(e.x,e.y+e.r,e.r*0.85,e.r*0.26,0,0,Math.PI*2); ctx.fill();
-
-  if      (e.t==='virus')    drawVirusEnemy(e);
-  else if (e.t==='worm')     drawWormEnemy(e);
-  else if (e.t==='bacteria') drawBacteriaEnemy(e);
-
-  // HP bar (show when damaged)
-  if (e.hp<e.maxHp) {
-    const bw=e.r*2.6, bh=4.5;
-    const bx=e.x-bw/2, by=e.y-e.r-12;
-    ctx.fillStyle='#220000'; ctx.fillRect(bx,by,bw,bh);
+function drawEnemy(e){
+  cx.fillStyle='rgba(0,0,0,0.22)';
+  cx.beginPath();cx.ellipse(e.x,e.y+e.r,e.r*0.88,e.r*0.25,0,0,Math.PI*2);cx.fill();
+  if(e.t==='virus')   drawVirus(e);
+  else if(e.t==='worm')    drawWorm(e);
+  else if(e.t==='bacteria')drawBacteria(e);
+  if(e.hp<e.maxHp){
+    const bw=e.r*2.8,bh=5;
+    const bx=e.x-bw/2,by=e.y-e.r-13;
+    cx.fillStyle='#220000';cx.fillRect(bx,by,bw,bh);
     const ratio=e.hp/e.maxHp;
-    ctx.fillStyle=ratio>0.5?'#cc2200':'#ff5500';
-    ctx.fillRect(bx,by,bw*ratio,bh);
-    ctx.strokeStyle='#440000'; ctx.lineWidth=0.8; ctx.strokeRect(bx,by,bw,bh);
+    cx.fillStyle=ratio>0.5?C.neonRed:'#ff5500';
+    cx.fillRect(bx,by,bw*ratio,bh);
+    cx.strokeStyle='#440000';cx.lineWidth=0.8;cx.strokeRect(bx,by,bw,bh);
   }
 }
 
-// ── PROJECTILE ────────────────────────────────────────────────────────────────
-function drawProj(p) {
-  // Trail
-  ctx.globalAlpha=0.32; ctx.strokeStyle=p.clr;
-  ctx.lineWidth=p.r*2; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x-p.vx*0.05,p.y-p.vy*0.05); ctx.stroke();
-  ctx.globalAlpha=1;
-  // Head
-  ctx.fillStyle=p.clr; ctx.strokeStyle='rgba(255,220,100,0.55)'; ctx.lineWidth=1.5;
-  ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); ctx.stroke();
-  // Chunk burst gets extra gross blob look
-  if (p.mode==='chunk') {
-    ctx.fillStyle='rgba(100,50,0,0.4)';
-    ctx.beginPath(); ctx.arc(p.x+p.r*0.3,p.y-p.r*0.3,p.r*0.55,0,Math.PI*2); ctx.fill();
+// ── DRAW: PROJECTILES ─────────────────────────────────────────────────────────
+function drawProj(p){
+  cx.globalAlpha=0.3;
+  cx.strokeStyle=p.clr;cx.lineWidth=p.r*2.2;cx.lineCap='round';
+  cx.beginPath();cx.moveTo(p.x,p.y);cx.lineTo(p.x-p.vx*0.055,p.y-p.vy*0.055);cx.stroke();
+  cx.globalAlpha=1;
+  cx.fillStyle=p.clr;cx.strokeStyle='rgba(255,220,100,0.6)';cx.lineWidth=1.5;
+  cx.beginPath();cx.arc(p.x,p.y,p.r,0,Math.PI*2);cx.fill();cx.stroke();
+  if(p.key==='chunk'){
+    cx.fillStyle='rgba(110,55,10,0.45)';
+    cx.beginPath();cx.arc(p.x+p.r*0.3,p.y-p.r*0.3,p.r*0.52,0,Math.PI*2);cx.fill();
   }
 }
 
-// ── PARTICLES + FLOATERS + PANELS ────────────────────────────────────────────
-function drawPart(p) {
-  if (p.ring) {
-    ctx.strokeStyle=p.clr; ctx.lineWidth=3;
-    ctx.globalAlpha=p.life;
-    ctx.beginPath(); ctx.arc(p.x,p.y,p.r*(1-p.life*0.5),0,Math.PI*2); ctx.stroke();
-    ctx.globalAlpha=1;
-  } else {
-    ctx.fillStyle=p.clr; ctx.globalAlpha=p.life;
-    ctx.beginPath(); ctx.arc(p.x,p.y,p.r*Math.max(0.1,p.life),0,Math.PI*2); ctx.fill();
-    ctx.globalAlpha=1;
+// ── DRAW: FX ──────────────────────────────────────────────────────────────────
+function drawPart(p){
+  if(p.ring){
+    cx.strokeStyle=p.clr;cx.lineWidth=3;cx.globalAlpha=p.life;
+    cx.beginPath();cx.arc(p.x,p.y,p.r*(1-p.life*0.5),0,Math.PI*2);cx.stroke();
+    cx.globalAlpha=1;
+  }else{
+    cx.fillStyle=p.clr;cx.globalAlpha=p.life;
+    cx.beginPath();cx.arc(p.x,p.y,p.r*Math.max(0.05,p.life),0,Math.PI*2);cx.fill();
+    cx.globalAlpha=1;
   }
 }
 
-function drawFloater(f) {
-  ctx.globalAlpha=f.life;
-  ctx.fillStyle=f.clr;
-  ctx.font='bold 13px Arial';
-  ctx.textAlign='center';
-  ctx.strokeStyle='rgba(0,0,0,0.6)'; ctx.lineWidth=2;
-  ctx.strokeText(f.text,f.x,f.y);
-  ctx.fillText(f.text,f.x,f.y);
-  ctx.globalAlpha=1;
+function drawFloater(f){
+  cx.globalAlpha=f.life;
+  cx.font='bold 14px Orbitron,Arial';cx.textAlign='center';
+  cx.strokeStyle='rgba(0,0,0,0.7)';cx.lineWidth=3;
+  cx.strokeText(f.text,f.x,f.y);
+  cx.fillStyle=f.clr;cx.fillText(f.text,f.x,f.y);
+  cx.globalAlpha=1;
 }
 
-function drawImpactPanel(p) {
-  ctx.save();
-  ctx.translate(p.x,p.y); ctx.rotate(p.rot); ctx.scale(p.sc,p.sc);
-  ctx.globalAlpha=Math.min(1,p.life*1.5);
-
-  // Starburst background
-  const nPts=8, outerR=56, innerR=38;
-  ctx.fillStyle='#ffd700';
-  ctx.beginPath();
-  for (let i=0;i<nPts*2;i++) {
+function drawPanel(p){
+  cx.save();
+  cx.translate(p.x,p.y);cx.rotate(p.rot);cx.scale(p.sc,p.sc);
+  cx.globalAlpha=Math.min(1,p.life*1.6);
+  // Starburst
+  const nPts=8,oR=62,iR=42;
+  cx.fillStyle='#ffd700';
+  cx.beginPath();
+  for(let i=0;i<nPts*2;i++){
     const a=(i/(nPts*2))*Math.PI*2-Math.PI/2;
-    const r=i%2===0?outerR:innerR;
-    i===0?ctx.moveTo(Math.cos(a)*r,Math.sin(a)*r):ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);
+    const r=i%2===0?oR:iR;
+    i===0?cx.moveTo(Math.cos(a)*r,Math.sin(a)*r):cx.lineTo(Math.cos(a)*r,Math.sin(a)*r);
   }
-  ctx.closePath(); ctx.fill();
-  ctx.strokeStyle='#8B4000'; ctx.lineWidth=3; ctx.stroke();
-
+  cx.closePath();cx.fill();
+  cx.strokeStyle='#8B3000';cx.lineWidth=3.5;cx.stroke();
   // Text
-  ctx.fillStyle='#1a0800';
-  ctx.font='bold 13px "Arial Black",Arial';
-  ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText(p.text,0,0);
-
-  ctx.restore();
+  cx.fillStyle='#1a0800';
+  cx.font='bold 14px Orbitron,"Arial Black",Arial';
+  cx.textAlign='center';cx.textBaseline='middle';
+  cx.fillText(p.text,0,0);
+  cx.restore();
 }
 
-// ── HUD ───────────────────────────────────────────────────────────────────────
-function drawHUD() {
-  // Top bar bg
-  ctx.fillStyle='rgba(10,4,0,0.92)';
-  ctx.fillRect(0,0,W,HUD_H);
-  ctx.strokeStyle='#331800'; ctx.lineWidth=1;
-  ctx.strokeRect(0,0,W,HUD_H);
+// ── DRAW: HUD ─────────────────────────────────────────────────────────────────
+function drawHUD(){
+  // Top bar
+  cx.fillStyle=C.hudBg;cx.fillRect(0,0,W,HUD_H);
+  cx.strokeStyle=C.hudBorder;cx.lineWidth=1;cx.strokeRect(0,0,W,HUD_H);
+  // Bottom zone
+  cx.fillStyle=C.hudBg;cx.fillRect(0,FIELD_BOT,W,H-FIELD_BOT);
+  cx.strokeStyle=C.hudBorder;cx.lineWidth=1;cx.strokeRect(0,FIELD_BOT,W,H-FIELD_BOT);
 
-  // Wave label
-  const isBossWave = waveIdx >= WaveDefs.length-1;
-  ctx.fillStyle=isBossWave?'#ff3300':'#ffd700';
-  ctx.font='bold 20px "Arial Black",Arial'; ctx.textAlign='left';
-  ctx.fillText(isBossWave?`⚠ WAVE ${waveIdx+1}`:`WAVE ${waveIdx+1}`, 38, 28);
-  if (isBossWave) {
-    ctx.fillStyle='#ff5500'; ctx.font='bold 10px Arial';
-    ctx.fillText('FINAL WAVE', 38, 44);
-  }
+  // Wave
+  const isBoss=waveIdx>=WD.length-1;
+  cx.fillStyle=isBoss?C.neonRed:C.neonGold;
+  cx.font='bold 18px Orbitron,Arial';cx.textAlign='left';
+  cx.fillText(isBoss?`⚠ WAVE ${waveIdx+1}`:`WAVE ${waveIdx+1}`,38,26);
 
   // Enemy count
   const alive=enemies.length+queues.reduce((s,q)=>s+q.rem,0);
-  ctx.fillStyle='#ff6633'; ctx.font='bold 15px Arial'; ctx.textAlign='center';
-  ctx.fillText(`👾 ${alive}`, W/2, 26);
-  ctx.fillStyle='#665533'; ctx.font='10px Arial';
-  ctx.fillText('enemies', W/2, 42);
+  cx.fillStyle='#ff6633';cx.font='bold 14px JetBrains Mono,monospace';cx.textAlign='center';
+  cx.fillText(`👾 ${alive}`,W/2,24);
+  cx.fillStyle=C.textMuted;cx.font='9px JetBrains Mono';cx.fillText('ENEMIES',W/2,38);
 
-  // Gold / Slime
-  ctx.fillStyle='#ffd700'; ctx.font='bold 20px Arial'; ctx.textAlign='right';
-  ctx.fillText(`${gold}💰`, W-12, 28);
-  ctx.fillStyle='#886633'; ctx.font='10px Arial';
-  ctx.fillText('slime', W-12, 44);
+  // Gold
+  cx.fillStyle=C.neonGold;cx.font='bold 18px Orbitron,Arial';cx.textAlign='right';
+  cx.fillText(`${gold}💰`,W-12,26);
 
-  // Horizontal pressure bar (top HUD)
-  const px=38, py=52, pw=W-76, ph=14;
-  const ratio=pressure/MAX_P;
+  // Horizontal pressure bar
+  const px=38,py=50,pw=W-76,ph=14,ratio=pressure/MAX_P;
   rRect(px,py,pw,ph,4,'#1a0000',null);
-  if (ratio>0) {
-    const pc=ratio>=1?'#ff0000':ratio>0.75?'#dd3300':ratio>0.5?'#992200':'#661100';
-    ctx.save(); ctx.beginPath(); ctx.roundRect(px,py,pw*ratio,ph,4); ctx.clip();
-    ctx.fillStyle=pc; ctx.fillRect(px,py,pw,ph);
-    // Pulsing segment for pressure sections
-    if (ratio>0.25) {
-      ctx.fillStyle='rgba(255,200,0,0.12)';
-      for (let i=0;i<4;i++) {
-        const segW=pw*0.25;
-        if (i*0.25<ratio) ctx.fillRect(px+i*segW+2,py+1,segW-4,ph-2);
-      }
+  if(ratio>0){
+    const pc=ratio>=1?C.neonRed:ratio>0.75?'#cc3300':ratio>0.5?'#882200':'#551100';
+    cx.save();cx.beginPath();cx.roundRect(px,py,pw*ratio,ph,4);cx.clip();
+    cx.fillStyle=pc;cx.fillRect(px,py,pw,ph);
+    if(ratio>0.3){
+      cx.fillStyle='rgba(255,200,0,0.1)';
+      for(let i=0;i<4;i++){const sw=pw*0.25;if(i*0.25<ratio)cx.fillRect(px+i*sw+2,py+1,sw-4,ph-2);}
     }
-    ctx.restore();
+    cx.restore();
   }
   rRect(px,py,pw,ph,4,null,'#550000',1.5);
-  ctx.fillStyle='rgba(255,160,80,0.9)'; ctx.font='bold 9px Arial'; ctx.textAlign='center';
-  ctx.fillText(`💀 PRESSURE  ${Math.round(pressure)}%`, W/2, py+10);
+  cx.fillStyle='rgba(255,160,80,0.92)';cx.font='bold 9px JetBrains Mono,monospace';cx.textAlign='center';
+  cx.fillText(`💀 PRESSURE  ${Math.round(pressure)}%`,W/2,py+10);
 
-  // VERTICAL PRESSURE BAR — left side (GDD §10.2)
+  // Vertical pressure bar (left side)
   {
-    const bx=PBAR_X, by=PBAR_TOP, bw=PBAR_W, bh=PBAR_BOT-PBAR_TOP;
-    rRect(bx,by,bw,bh,4,'#150500',null);
-    if (ratio>0) {
-      const fillH=bh*ratio;
-      const pc=ratio>=1?'#ff0000':ratio>0.75?'#dd2200':ratio>0.5?'#882200':'#440000';
-      ctx.save(); ctx.beginPath(); ctx.roundRect(bx,by+bh-fillH,bw,fillH,[0,0,4,4]); ctx.clip();
-      ctx.fillStyle=pc; ctx.fillRect(bx,by,bw,bh); ctx.restore();
-      // Segment notches
-      for (let s=1;s<4;s++) {
-        ctx.strokeStyle='rgba(0,0,0,0.4)'; ctx.lineWidth=1;
-        ctx.beginPath(); ctx.moveTo(bx,by+bh*(1-s*0.25)); ctx.lineTo(bx+bw,by+bh*(1-s*0.25)); ctx.stroke();
+    const bx=8,by=FIELD_TOP+10,bw=18,bh=FIELD_BOT-FIELD_TOP-18;
+    rRect(bx,by,bw,bh,4,'#120300',null);
+    if(ratio>0){
+      const fh=bh*ratio;
+      const pc=ratio>=1?C.neonRed:ratio>0.75?'#cc2200':ratio>0.5?'#7a1800':'#380800';
+      cx.save();cx.beginPath();cx.roundRect(bx,by+bh-fh,bw,fh,[0,0,4,4]);cx.clip();
+      cx.fillStyle=pc;cx.fillRect(bx,by,bw,bh);
+      for(let s=1;s<4;s++){
+        cx.strokeStyle='rgba(0,0,0,0.5)';cx.lineWidth=1;
+        cx.beginPath();cx.moveTo(bx,by+bh*(1-s*0.25));cx.lineTo(bx+bw,by+bh*(1-s*0.25));cx.stroke();
       }
+      cx.restore();
     }
-    rRect(bx,by,bw,bh,4,null,'#441100',1.5);
-    // Skull at top
-    ctx.fillStyle=ratio>=1?'#ff0000':'#553300';
-    ctx.font='16px Arial'; ctx.textAlign='center';
-    ctx.fillText('💀',bx+bw/2,by-3);
+    rRect(bx,by,bw,bh,4,null,'#440800',1.5);
+    cx.fillStyle=ratio>=1?C.neonRed:'#553300';
+    cx.font='15px Arial';cx.textAlign='center';cx.fillText('💀',bx+bw/2,by-5);
   }
 
-  // Fire mode buttons — bottom zone (GDD §10.1 right thumb zone)
-  const btnW=94, btnH=58;
-  const btnsY=H-btnH-10;
-  const totalW=Modes.length*btnW+(Modes.length-1)*7;
-  const btnsX=(W-totalW)/2;
+  // ── FIRE MODE BUTTONS ──
+  const btnW=94,btnH=54,btnsY=H-btnH-9;
+  const tot=Modes.length*btnW+(Modes.length-1)*7;
+  const btnsX=(W-tot)/2;
+  cx.fillStyle=C.textMuted;cx.font='9px JetBrains Mono';cx.textAlign='center';
+  cx.fillText('FIRE MODE',W/2,FIELD_BOT+13);
 
-  // Bottom zone bg
-  ctx.fillStyle='rgba(8,3,0,0.92)';
-  ctx.fillRect(0,FIELD_BOT,W,H-FIELD_BOT);
-  ctx.strokeStyle='#331800'; ctx.lineWidth=1;
-  ctx.strokeRect(0,FIELD_BOT,W,H-FIELD_BOT);
-
-  // "FIRE MODE" label
-  ctx.fillStyle='#553311'; ctx.font='10px Arial'; ctx.textAlign='center';
-  ctx.fillText('FIRE MODE',W/2,FIELD_BOT+12);
-
-  for (let i=0;i<Modes.length;i++) {
-    const m=Modes[i];
-    const bx=btnsX+i*(btnW+7);
-    const active=i===modeIdx;
-    rRect(bx,btnsY,btnW,btnH,9,
-      active?'#6a2200':'rgba(10,4,0,0.9)',
-      active?'#ff7700':'#3d1800',
-      active?2.5:1.5);
-    // Active glow
-    if (active) {
-      ctx.shadowColor='#ff6600'; ctx.shadowBlur=10;
-      ctx.strokeStyle='#ff7700'; ctx.lineWidth=2.5;
-      ctx.beginPath(); ctx.roundRect(bx,btnsY,btnW,btnH,9); ctx.stroke();
-      ctx.shadowBlur=0;
+  for(let i=0;i<Modes.length;i++){
+    const m=Modes[i],bx=btnsX+i*(btnW+7),active=i===modeIdx;
+    rRect(bx,btnsY,btnW,btnH,9,active?'#6a2200':'rgba(8,3,0,0.92)',active?'#ff7700':'#331200',active?2.5:1.5);
+    if(active){
+      cx.shadowColor='#ff5500';cx.shadowBlur=14;
+      cx.strokeStyle='#ff6600';cx.lineWidth=2.5;
+      cx.beginPath();cx.roundRect(bx,btnsY,btnW,btnH,9);cx.stroke();
+      cx.shadowBlur=0;
     }
-    ctx.font='26px Arial'; ctx.textAlign='center';
-    ctx.fillText(m.em, bx+btnW/2, btnsY+30);
-    ctx.fillStyle=active?'#ffd700':'#886633';
-    ctx.font=`bold ${active?11:10}px Arial`;
-    ctx.fillText(m.shortName||m.name.split(' ')[0], bx+btnW/2, btnsY+46);
-    // DMG/RATE mini stats
-    ctx.fillStyle='#554433'; ctx.font='8px Arial';
-    ctx.fillText(`DMG:${m.dmg}`, bx+btnW/2-18, btnsY+58);
-    ctx.fillText(`×${m.rate}`, bx+btnW/2+18, btnsY+58);
+    cx.font='24px Arial';cx.textAlign='center';cx.fillText(m.em,bx+btnW/2,btnsY+28);
+    cx.fillStyle=active?C.neonGold:C.textMuted;
+    cx.font=`bold 10px Orbitron,Arial`;
+    cx.fillText(m.name.split(' ')[0],bx+btnW/2,btnsY+44);
+    cx.fillStyle='#4a3020';cx.font='8px JetBrains Mono';
+    cx.fillText(`DMG:${m.dmg} ×${m.rate}`,bx+btnW/2,btnsY+56);
   }
 }
 
-// ── RED VIGNETTE ──────────────────────────────────────────────────────────────
-function drawVignette() {
-  if (vignetteA<=0) return;
-  const gr=ctx.createRadialGradient(W/2,H/2,H*0.18,W/2,H/2,H*0.72);
+// ── DRAW: VIGNETTE / FLASH ────────────────────────────────────────────────────
+function drawVignette(){
+  if(vigA<=0)return;
+  const gr=cx.createRadialGradient(W/2,H/2,H*0.18,W/2,H/2,H*0.74);
   gr.addColorStop(0,'rgba(0,0,0,0)');
-  gr.addColorStop(1,`rgba(210,0,0,${vignetteA})`);
-  ctx.fillStyle=gr; ctx.fillRect(0,0,W,H);
+  gr.addColorStop(1,`rgba(215,0,0,${vigA})`);
+  cx.fillStyle=gr;cx.fillRect(0,0,W,H);
 }
 
-// ── ULTIMATE FLASH ────────────────────────────────────────────────────────────
-function drawUltFlash() {
-  if (!ultActive) return;
-  const a=Math.min(1,ultTimer/1.5);
-  ctx.fillStyle=`rgba(0,220,200,${a*0.18})`;
-  ctx.fillRect(0,0,W,H);
-  if (ultTimer>1.0) {
-    ctx.fillStyle=`rgba(0,255,200,${(ultTimer-1.0)*0.9})`;
-    ctx.font='bold 36px "Arial Black",Arial'; ctx.textAlign='center';
-    ctx.strokeStyle='rgba(0,80,60,0.8)'; ctx.lineWidth=4;
-    ctx.strokeText('💀 PRESSURE RELEASED! 💀',W/2,H/2);
-    ctx.fillText('💀 PRESSURE RELEASED! 💀',W/2,H/2);
-    ctx.fillStyle='rgba(0,200,160,0.9)';
-    ctx.font='20px Arial';
-    ctx.fillText('FLUSH! ALL ENEMIES PURGED',W/2,H/2+36);
+function drawUltFlash(){
+  if(!ultActive)return;
+  const a=Math.min(1,ultTimer/1.8);
+  cx.fillStyle=`rgba(0,200,180,${a*0.15})`;cx.fillRect(0,0,W,H);
+  if(ultTimer>1.1){
+    const fa=(ultTimer-1.1)*1.1;
+    cx.font='bold 32px Orbitron,Arial';cx.textAlign='center';
+    cx.strokeStyle=`rgba(0,50,40,${fa*0.9})`;cx.lineWidth=5;
+    cx.strokeText('💀 PRESSURE RELEASED! 💀',W/2,H/2-10);
+    cx.fillStyle=`rgba(0,220,200,${fa})`;
+    cx.fillText('💀 PRESSURE RELEASED! 💀',W/2,H/2-10);
+    cx.font='bold 18px JetBrains Mono';
+    cx.fillStyle=`rgba(150,255,230,${fa*0.9})`;
+    cx.fillText('ALL ENEMIES FLUSHED',W/2,H/2+28);
   }
 }
 
-// ── WAVE CLEAR SCREEN ─────────────────────────────────────────────────────────
-function drawWaveClear() {
-  ctx.fillStyle='rgba(0,0,0,0.65)'; ctx.fillRect(0,0,W,H);
-  // Panel
-  rRect(W/2-160,H/2-100,320,230,14,'rgba(20,8,0,0.95)','#aa5500',2);
-  ctx.fillStyle='#ffd700'; ctx.font='bold 38px "Arial Black",Arial'; ctx.textAlign='center';
-  ctx.fillText('WAVE CLEAR! 💩',W/2,H/2-52);
-  ctx.strokeStyle='#553300'; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(W/2-120,H/2-32); ctx.lineTo(W/2+120,H/2-32); ctx.stroke();
-  ctx.fillStyle='#ff9933'; ctx.font='bold 18px Arial';
-  ctx.fillText(`${score} SLIME EARNED`,W/2,H/2-8);
-  ctx.fillStyle='#c8a414'; ctx.font='16px Arial';
-  ctx.fillText(`Pressure: ${Math.round(pressure)}%`,W/2,H/2+22);
-  ctx.fillText(`Wave ${waveIdx+1} of ${WaveDefs.length}`,W/2,H/2+48);
-  const prog=1-clearTimer/3.0;
-  rRect(W/2-100,H/2+72,200,10,5,'#330a00',null);
-  ctx.save(); ctx.beginPath(); ctx.roundRect(W/2-100,H/2+72,200*prog,10,5); ctx.clip();
-  ctx.fillStyle='#ffd700'; ctx.fillRect(W/2-100,H/2+72,200,10); ctx.restore();
-  ctx.fillStyle='#665533'; ctx.font='13px Arial';
-  ctx.fillText('Next wave incoming…',W/2,H/2+100);
+// ── WAVE CLEAR ────────────────────────────────────────────────────────────────
+function drawWaveClear(){
+  cx.fillStyle='rgba(0,0,0,0.72)';cx.fillRect(0,0,W,H);
+  rRect(W/2-160,H/2-110,320,250,14,'rgba(12,5,0,0.97)','#aa4400',2);
+  cx.fillStyle=C.neonGold;cx.font='bold 36px Orbitron,Arial';cx.textAlign='center';
+  cx.fillText('WAVE CLEAR 💩',W/2,H/2-60);
+  cx.strokeStyle='#553300';cx.lineWidth=1;
+  cx.beginPath();cx.moveTo(W/2-120,H/2-38);cx.lineTo(W/2+120,H/2-38);cx.stroke();
+  cx.fillStyle='#ff9933';cx.font='bold 17px JetBrains Mono,monospace';
+  cx.fillText(`+${score} SLIME COLLECTED`,W/2,H/2-12);
+  cx.fillStyle=C.textMuted;cx.font='14px JetBrains Mono';
+  cx.fillText(`Pressure: ${Math.round(pressure)}%`,W/2,H/2+16);
+  cx.fillText(`Wave ${waveIdx+1} / ${WD.length}`,W/2,H/2+42);
+  const prog=1-clearTimer/3.2;
+  rRect(W/2-100,H/2+66,200,8,4,'#1a0500',null);
+  cx.save();cx.beginPath();cx.roundRect(W/2-100,H/2+66,200*prog,8,4);cx.clip();
+  cx.fillStyle=C.neonGold;cx.fillRect(W/2-100,H/2+66,200,8);cx.restore();
+  cx.fillStyle='#554422';cx.font='12px JetBrains Mono';
+  cx.fillText('Next wave incoming…',W/2,H/2+88);
 }
 
-// ── GAME OVER SCREEN ──────────────────────────────────────────────────────────
-function drawGameOver() {
-  ctx.fillStyle='rgba(0,0,0,0.82)'; ctx.fillRect(0,0,W,H);
-  rRect(W/2-155,H/2-160,310,340,14,'rgba(15,3,0,0.97)','#cc0000',2);
-  ctx.fillStyle='#cc0000'; ctx.font='bold 50px "Arial Black",Arial'; ctx.textAlign='center';
-  ctx.fillText('💀 DEFILED!',W/2,H/2-104);
-  ctx.fillStyle='#ff4422'; ctx.font='bold 18px Arial';
-  ctx.fillText('The Throne has fallen. The Poop wins.',W/2,H/2-68);
-  ctx.strokeStyle='#440000'; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(W/2-110,H/2-50); ctx.lineTo(W/2+110,H/2-50); ctx.stroke();
-  ctx.fillStyle='#ffd700'; ctx.font='bold 18px Arial';
-  ctx.fillText(`Slime collected: ${score}`,W/2,H/2-24);
-  ctx.fillStyle='#cc9922'; ctx.font='16px Arial';
-  ctx.fillText(`Waves survived: ${waveIdx}`,W/2,H/2+6);
-  ctx.fillText(`Pressure at defeat: ${Math.round(pressure)}%`,W/2,H/2+32);
-  const ry=H/2+68;
+// ── GAME OVER ─────────────────────────────────────────────────────────────────
+function drawGameOver(){
+  cx.fillStyle='rgba(0,0,0,0.85)';cx.fillRect(0,0,W,H);
+  rRect(W/2-155,H/2-170,310,360,14,'rgba(10,2,0,0.97)','#cc0000',2.5);
+  cx.fillStyle=C.neonRed;cx.font='bold 46px Orbitron,Arial';cx.textAlign='center';
+  cx.fillText('💀 DEFILED',W/2,H/2-118);
+  cx.fillStyle='#ff4422';cx.font='bold 15px JetBrains Mono';
+  cx.fillText('The Throne has fallen.',W/2,H/2-78);
+  cx.fillText('The Poop wins.',W/2,H/2-54);
+  cx.strokeStyle='#440000';cx.lineWidth=1;
+  cx.beginPath();cx.moveTo(W/2-110,H/2-36);cx.lineTo(W/2+110,H/2-36);cx.stroke();
+  cx.fillStyle=C.neonGold;cx.font='bold 17px JetBrains Mono';
+  cx.fillText(`Slime: ${score}`,W/2,H/2-10);
+  cx.fillStyle=C.textMuted;cx.font='14px JetBrains Mono';
+  cx.fillText(`Waves: ${waveIdx}`,W/2,H/2+18);
+  cx.fillText(`Pressure: ${Math.round(pressure)}%`,W/2,H/2+44);
+  const ry=H/2+78;
   rRect(W/2-110,ry,220,60,12,'#6a1a00','#ff3300',2.5);
-  ctx.fillStyle='#ffd700'; ctx.font='bold 24px "Arial Black",Arial';
-  ctx.fillText('↻  TRY AGAIN',W/2,ry+40);
+  cx.fillStyle=C.neonGold;cx.font='bold 22px Orbitron,Arial';
+  cx.fillText('↻  TRY AGAIN',W/2,ry+40);
 }
 
 // ── MENU ──────────────────────────────────────────────────────────────────────
-function drawMenu() {
+function drawMenu(){
   drawBg();
-  // Decorative sewer pipe at top
-  ctx.fillStyle='rgba(80,40,0,0.4)';
-  ctx.fillRect(0,0,W,50);
-  for (let x=0;x<W;x+=44) {
-    ctx.fillStyle='rgba(100,50,0,0.35)';
-    ctx.beginPath(); ctx.arc(x+22,25,14,0,Math.PI*2); ctx.fill();
-  }
-
   // Title panel
-  rRect(18,110,W-36,260,14,'rgba(18,7,0,0.96)','#664400',2);
-  // Russian title
-  ctx.fillStyle='#ffd700'; ctx.font='bold 52px "Arial Black",Arial';
-  ctx.strokeStyle='rgba(40,0,0,0.9)'; ctx.lineWidth=5;
-  ctx.strokeText('💩 POOPATHON',W/2,196);
-  ctx.fillText('💩 POOPATHON',W/2,196);
-  ctx.fillStyle='#c8a414'; ctx.font='bold 15px Arial'; ctx.lineWidth=0;
-  ctx.fillText('TOWER DEFENSE',W/2,224);
-  ctx.strokeStyle='#553300'; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(60,238); ctx.lineTo(W-60,238); ctx.stroke();
-  ctx.fillStyle='#886633'; ctx.font='13px Arial';
-  ctx.fillText('Gross-out Tower Defense  ·  Active Manual Combat',W/2,260);
-  ctx.fillText('Hold/drag to aim · Auto-fires at targets',W/2,280);
-  ctx.fillStyle='#553322'; ctx.font='12px Arial';
-  ctx.fillText('Defeat waves · Build Pressure · RELEASE THE FLUSH!',W/2,300);
-  // Enemy preview row
-  ctx.fillStyle='#553322'; ctx.font='10px Arial';
-  ctx.fillText('ENEMIES:  Virus  ·  Worm  ·  Bacteria (armored)',W/2,318);
-  ctx.fillText('FIRE MODES:  💩 Chunk Burst  ·  💦 Auto Diarrhea  ·  💨 Gas Cone',W/2,336);
+  rRect(16,106,W-32,276,14,'rgba(10,4,0,0.96)','#663300',2);
 
-  // Mode preview buttons
-  const mw=88,mh=48,my=388;
+  // Big title
+  cx.fillStyle=C.neonGold;
+  cx.font='bold 58px Orbitron,Arial';
+  cx.textAlign='center';
+  cx.shadowColor='#aa4400';cx.shadowBlur=24;
+  cx.strokeStyle='rgba(40,0,0,0.9)';cx.lineWidth=5;
+  cx.strokeText('POOPATHON',W/2,186);
+  cx.fillText('POOPATHON',W/2,186);
+  cx.shadowBlur=0;
+
+  cx.fillStyle=C.textMuted;cx.font='bold 12px Orbitron,Arial';cx.lineWidth=0;
+  cx.fillText('TOWER DEFENSE',W/2,214);
+
+  cx.strokeStyle='#553300';cx.lineWidth=1;
+  cx.beginPath();cx.moveTo(60,228);cx.lineTo(W-60,228);cx.stroke();
+
+  cx.fillStyle='#886644';cx.font='12px JetBrains Mono';
+  cx.fillText('Defend the Throne · Active Manual Combat',W/2,250);
+  cx.fillText('Hold/drag to aim · Auto-fires · 3 fire modes',W/2,270);
+  cx.fillStyle='#553322';cx.font='11px JetBrains Mono';
+  cx.fillText('Kill enemies → build Pressure → FLUSH all!',W/2,291);
+  cx.fillText('Enemies: VIRUS  ·  WORM  ·  BACTERIA (armored)',W/2,310);
+  cx.fillText('Don\'t let Pressure hit 100% or it\'s GAME OVER',W/2,328);
+  cx.fillText('💩 Chunk  ·  💦 Auto  ·  💨 Gas Cone',W/2,348);
+
+  // Mode buttons
+  const mw=88,mh=50,my=408;
   const mx=(W-Modes.length*mw-(Modes.length-1)*8)/2;
-  for (let i=0;i<Modes.length;i++) {
-    const m=Modes[i], bx=mx+i*(mw+8);
-    rRect(bx,my,mw,mh,8,'#3a1500','#5a2800',1.5);
-    ctx.font='22px Arial'; ctx.textAlign='center'; ctx.fillText(m.em,bx+mw/2,my+26);
-    ctx.fillStyle='#886633'; ctx.font='bold 10px Arial';
-    ctx.fillText(m.shortName||m.name.split(' ')[0],bx+mw/2,my+44);
+  for(let i=0;i<Modes.length;i++){
+    const m=Modes[i],bx=mx+i*(mw+8);
+    rRect(bx,my,mw,mh,8,'#2a0e00','#553300',1.5);
+    cx.font='24px Arial';cx.textAlign='center';cx.fillText(m.em,bx+mw/2,my+28);
+    cx.fillStyle='#886644';cx.font='bold 9px Orbitron,Arial';
+    cx.fillText(m.name.split(' ')[0],bx+mw/2,my+46);
   }
 
   // Start button
-  const sy=H/2+108;
+  const sy=H/2+112;
+  cx.shadowColor='#cc2200';cx.shadowBlur=18;
   rRect(W/2-120,sy,240,68,14,'#8B0000','#ff3300',3);
-  ctx.fillStyle='#ffd700'; ctx.font='bold 26px "Arial Black",Arial'; ctx.textAlign='center';
-  ctx.fillText('▶  START GAME',W/2,sy+46);
-  ctx.fillStyle='rgba(255,100,0,0.3)';
-  ctx.beginPath(); ctx.roundRect(W/2-120,sy,240,68,14); ctx.fill();
+  cx.shadowBlur=0;
+  cx.fillStyle=C.neonGold;cx.font='bold 24px Orbitron,Arial';cx.textAlign='center';
+  cx.fillText('▶  START',W/2,sy+44);
 
-  ctx.fillStyle='#2a1200'; ctx.font='11px Arial';
-  ctx.fillText('v0.2 · Open Source on GitHub',W/2,H-16);
+  cx.fillStyle='#2a1200';cx.font='10px JetBrains Mono';cx.shadowBlur=0;
+  cx.fillText('v0.3 · Open Source on GitHub',W/2,H-18);
 }
 
-// ── MAIN LOOP ─────────────────────────────────────────────────────────────────
-function loop(ts) {
+// ── LOOP ──────────────────────────────────────────────────────────────────────
+function loop(ts){
   const dt=Math.min((ts-lastTs)/1000,0.05);
   lastTs=ts;
 
-  if (gstate==='wave_clear') {
+  if(gs==='wave_clear'){
+    waterOffset=(waterOffset+dt*18)%(Math.PI*2);
     clearTimer-=dt;
-    // Keep particles alive during break
-    for (const p of parts) { p.x+=p.vx*dt; p.y+=p.vy*dt; p.vx*=0.9; p.vy*=0.9; p.life-=p.dec*dt; }
+    for(const p of parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=0.9;p.vy*=0.9;p.life-=p.dec*dt;}
     parts=parts.filter(p=>p.life>0);
-    for (const f of floaters) { f.y+=f.vy*dt; f.vy*=0.88; f.life-=f.dec*dt; }
+    for(const f of floaters){f.y+=f.vy*dt;f.vy*=0.88;f.life-=f.dec*dt;}
     floaters=floaters.filter(f=>f.life>0);
-    for (const p of impactPanels) { p.sc=lerp(p.sc,p.tSc,0.25); p.life-=p.dec*dt; }
-    impactPanels=impactPanels.filter(p=>p.life>0);
-    if (clearTimer<=0) { gstate='playing'; startWave(waveIdx+1); }
-  } else {
+    for(const p of panels){p.sc=lerp(p.sc,1.0,0.22);p.life-=p.dec*dt;}
+    panels=panels.filter(p=>p.life>0);
+    if(clearTimer<=0){gs='playing';startWave(waveIdx+1);}
+  }else{
     update(dt);
   }
 
-  // Shake transform
-  let ox=0, oy=0;
-  if (shakeT>0) { ox=(Math.random()-0.5)*shakeI*2; oy=(Math.random()-0.5)*shakeI*2; ctx.save(); ctx.translate(ox,oy); }
+  let ox=0,oy=0;
+  if(shakeT>0){ox=(Math.random()-0.5)*shakeI*2;oy=(Math.random()-0.5)*shakeI*2;cx.save();cx.translate(ox,oy);}
 
-  if (gstate==='menu') {
+  if(gs==='menu'){
     drawMenu();
-  } else {
+  }else{
     drawBg();
-    for (const p of parts)        drawPart(p);
-    for (const p of projs)        drawProj(p);
-    for (const e of enemies)      drawEnemy(e);
-    drawTower();
+    for(const p of parts)   drawPart(p);
+    for(const p of projs)   drawProj(p);
+    for(const e of enemies) drawEnemy(e);
+    drawCannon();
     drawVignette();
     drawUltFlash();
     drawHUD();
-    for (const f of floaters)     drawFloater(f);
-    for (const p of impactPanels) drawImpactPanel(p);
-    if (gstate==='wave_clear') drawWaveClear();
-    if (gstate==='game_over')  drawGameOver();
+    for(const f of floaters) drawFloater(f);
+    for(const p of panels)   drawPanel(p);
+    if(gs==='wave_clear') drawWaveClear();
+    if(gs==='game_over')  drawGameOver();
   }
 
-  if (shakeT>0) ctx.restore();
+  if(shakeT>0)cx.restore();
   requestAnimationFrame(loop);
 }
 
 // ── INPUT ─────────────────────────────────────────────────────────────────────
-function toGame(cx,cy) {
-  const r=canvas.getBoundingClientRect();
-  return {x:(cx-r.left)/scale, y:(cy-r.top)/scale};
-}
-function onDown(cx,cy) {
-  const p=toGame(cx,cy);
-  if (gstate==='menu') {
-    const sy=H/2+108;
-    if (p.x>=W/2-120&&p.x<=W/2+120&&p.y>=sy&&p.y<=sy+68) startGame();
+function toG(cx2,cy2){const r=cv.getBoundingClientRect();return{x:(cx2-r.left)/SC,y:(cy2-r.top)/SC};}
+function onDown(cx2,cy2){
+  const p=toG(cx2,cy2);
+  if(gs==='menu'){
+    const sy=H/2+112;
+    if(p.x>=W/2-120&&p.x<=W/2+120&&p.y>=sy&&p.y<=sy+68)startGame();
     return;
   }
-  if (gstate==='game_over') {
-    const ry=H/2+68;
-    if (p.x>=W/2-110&&p.x<=W/2+110&&p.y>=ry&&p.y<=ry+60) startGame();
+  if(gs==='game_over'){
+    const ry=H/2+78;
+    if(p.x>=W/2-110&&p.x<=W/2+110&&p.y>=ry&&p.y<=ry+60)startGame();
     return;
   }
-  // Fire mode buttons
-  const btnW=94,btnH=58,btnsY=H-btnH-10;
-  const totalW=Modes.length*btnW+(Modes.length-1)*7;
-  const btnsX=(W-totalW)/2;
-  for (let i=0;i<Modes.length;i++) {
+  const btnW=94,btnH=54,btnsY=H-btnH-9;
+  const tot=Modes.length*btnW+(Modes.length-1)*7,btnsX=(W-tot)/2;
+  for(let i=0;i<Modes.length;i++){
     const bx=btnsX+i*(btnW+7);
-    if (p.x>=bx&&p.x<=bx+btnW&&p.y>=btnsY&&p.y<=btnsY+btnH) { modeIdx=i; return; }
+    if(p.x>=bx&&p.x<=bx+btnW&&p.y>=btnsY&&p.y<=btnsY+btnH){modeIdx=i;return;}
   }
-  // Ultimate tap (tap near throne at full pressure)
-  if (pressure>=MAX_P && dist(p.x,p.y,TOWER_X,TOWER_Y)<100) {
-    triggerUltimate(); return;
-  }
-  // Aim
-  if (gstate==='playing') {
-    aimActive=true;
-    aimAngle=Math.atan2(p.y-PIVOT_Y,p.x-TOWER_X);
-  }
+  if(pressure>=MAX_P&&dist(p.x,p.y,TOWER_X,TOWER_Y)<110){triggerUlt();return;}
+  if(gs==='playing'){aimActive=true;aimAngle=Math.atan2(p.y-PIVOT_Y,p.x-TOWER_X);}
 }
-function onMove(cx,cy) {
-  if (!aimActive||gstate!=='playing') return;
-  const p=toGame(cx,cy);
-  aimAngle=Math.atan2(p.y-PIVOT_Y,p.x-TOWER_X);
+function onMove(cx2,cy2){
+  if(!aimActive||gs!=='playing')return;
+  const p=toG(cx2,cy2);aimAngle=Math.atan2(p.y-PIVOT_Y,p.x-TOWER_X);
 }
-function onUp() { aimActive=false; }
-
-canvas.addEventListener('mousedown',  e=>onDown(e.clientX,e.clientY));
-canvas.addEventListener('mousemove',  e=>onMove(e.clientX,e.clientY));
-canvas.addEventListener('mouseup',    onUp);
-canvas.addEventListener('touchstart', e=>{e.preventDefault();onDown(e.touches[0].clientX,e.touches[0].clientY);},{passive:false});
-canvas.addEventListener('touchmove',  e=>{e.preventDefault();onMove(e.touches[0].clientX,e.touches[0].clientY);},{passive:false});
-canvas.addEventListener('touchend',   e=>{e.preventDefault();onUp();},{passive:false});
+function onUp(){aimActive=false;}
+cv.addEventListener('mousedown', e=>onDown(e.clientX,e.clientY));
+cv.addEventListener('mousemove', e=>onMove(e.clientX,e.clientY));
+cv.addEventListener('mouseup',   onUp);
+cv.addEventListener('touchstart',e=>{e.preventDefault();onDown(e.touches[0].clientX,e.touches[0].clientY);},{passive:false});
+cv.addEventListener('touchmove', e=>{e.preventDefault();onMove(e.touches[0].clientX,e.touches[0].clientY);},{passive:false});
+cv.addEventListener('touchend',  e=>{e.preventDefault();onUp();},{passive:false});
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
-function startGame() {
-  enemies=[]; projs=[]; parts=[]; floaters=[]; impactPanels=[];
-  pressure=0; gold=0; score=0;
-  modeIdx=0; fireCd=0;
-  aimAngle=-Math.PI/2; aimActive=false;
-  shakeT=0; shakeI=0; vignetteA=0;
-  ultActive=false; ultTimer=0;
-  gstate='playing';
-  startWave(0);
+function startGame(){
+  enemies=[];projs=[];parts=[];floaters=[];panels=[];
+  pressure=0;gold=0;score=0;
+  modeIdx=0;fireCd=0;
+  aimAngle=-Math.PI/2;aimActive=false;
+  shakeT=0;shakeI=0;vigA=0;
+  ultActive=false;ultTimer=0;
+  gs='playing';startWave(0);
 }
-
 requestAnimationFrame(ts=>{lastTs=ts;requestAnimationFrame(loop);});
 </script>
 </body>
