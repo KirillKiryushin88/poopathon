@@ -158,6 +158,66 @@ function rRect(x,y,w,h,r,fill,stroke,lw=2){
   if(stroke){cx.strokeStyle=stroke;cx.lineWidth=lw;cx.stroke();}
 }
 
+// ── AUDIO ─────────────────────────────────────────────────────────────────────
+let _ac=null;
+function getAC(){
+  if(!_ac)_ac=new(window.AudioContext||window.webkitAudioContext)();
+  if(_ac.state==='suspended')_ac.resume();
+  return _ac;
+}
+function _noise(sec,vol=0.35,decay=30){
+  const a=getAC(),buf=a.createBuffer(1,Math.ceil(a.sampleRate*sec),a.sampleRate),d=buf.getChannelData(0);
+  for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.exp(-i/a.sampleRate*decay)*vol;
+  const s=a.createBufferSource();s.buffer=buf;s.connect(a.destination);s.start();
+}
+function _tone(freq,type,sec,vol=0.3,sweep=null){
+  const a=getAC(),o=a.createOscillator(),g=a.createGain(),now=a.currentTime;
+  o.type=type;o.frequency.value=freq;
+  if(sweep)o.frequency.exponentialRampToValueAtTime(sweep,now+sec);
+  g.gain.setValueAtTime(vol,now);g.gain.exponentialRampToValueAtTime(0.001,now+sec);
+  o.connect(g);g.connect(a.destination);o.start(now);o.stop(now+sec+0.05);
+}
+function snd_plop(){_tone(180,'sine',0.18,0.55,42);_noise(0.1,0.22,38);}
+let _sq=0;
+function snd_squirt(){const n=Date.now();if(n-_sq<85)return;_sq=n;_noise(0.07,0.18,55);}
+function snd_fart(){_tone(105,'sawtooth',0.26,0.38,36);_noise(0.28,0.18,10);}
+function snd_splat(){if(Math.random()>0.45)return;_noise(0.1,0.28,42);}
+function snd_throne(){_tone(200,'sine',0.22,0.58,52);_noise(0.15,0.32,28);}
+function snd_flush(){
+  const a=getAC(),buf=a.createBuffer(1,Math.ceil(a.sampleRate*1.2),a.sampleRate),d=buf.getChannelData(0);
+  for(let i=0;i<d.length;i++){const t=i/a.sampleRate;d[i]=(Math.random()*2-1)*Math.min(t*4,1)*Math.exp(-(t-0.3)*3)*0.42;}
+  const s=a.createBufferSource(),f=a.createBiquadFilter();
+  f.type='bandpass';f.frequency.value=650;f.Q.value=0.5;
+  s.buffer=buf;s.connect(f);f.connect(a.destination);s.start();
+}
+function snd_freeze(){_tone(2200,'sine',0.5,0.22,550);_noise(0.5,0.08,8);}
+function snd_acid(){
+  const a=getAC(),buf=a.createBuffer(1,Math.ceil(a.sampleRate*0.7),a.sampleRate),d=buf.getChannelData(0);
+  for(let i=0;i<d.length;i++){const t=i/a.sampleRate;d[i]=(Math.random()*2-1)*Math.exp(-t*2.8)*0.26*(1+0.7*Math.sin(2*Math.PI*55*t));}
+  const s=a.createBufferSource(),f=a.createBiquadFilter();
+  f.type='highpass';f.frequency.value=1600;s.buffer=buf;s.connect(f);f.connect(a.destination);s.start();
+}
+function snd_wave_clear(){[200,300,450,600].forEach((fr,i)=>{setTimeout(()=>_tone(fr,'square',0.18,0.11),i*95);});}
+function snd_tower(type){if(type===0)_noise(0.08,0.18,48);else if(type===1)_tone(1800,'sine',0.14,0.11);else _noise(0.11,0.14,30);}
+function snd_boss(){_tone(52,'sawtooth',0.8,0.44,30);}
+
+// ── META PROGRESSION ──────────────────────────────────────────────────────────
+const MK='poop_meta';
+function loadMeta(){try{return JSON.parse(localStorage.getItem(MK)||'{}');}catch{return{};}}
+function saveMeta(d){try{localStorage.setItem(MK,JSON.stringify(d));}catch{}}
+function recordRun(){
+  const m=loadMeta();
+  m.hs=Math.max(m.hs||0,score); m.bw=Math.max(m.bw||0,waveIdx);
+  m.runs=(m.runs||0)+1; saveMeta(m);
+}
+
+// ── CHAPTERS ──────────────────────────────────────────────────────────────────
+function getChapter(w){
+  if(w<3)return{n:1,name:'THE SEWERS'};
+  if(w<6)return{n:2,name:'PUBLIC TOILET'};
+  return{n:3,name:'BIO LAB'};
+}
+
 // ── PARTICLES ─────────────────────────────────────────────────────────────────
 function burst(x,y,clr,n,spd,sz) {
   for(let i=0;i<n;i++){
@@ -201,6 +261,7 @@ function startWave(idx){
 // ── SHOOT ─────────────────────────────────────────────────────────────────────
 function shoot(tx,ty){
   const m=Modes[modeIdx];
+  if(modeIdx===0)snd_plop(); else if(modeIdx===1)snd_squirt(); else snd_fart();
   const dx=tx-TOWER_X,dy=ty-PIVOT_Y,d=Math.hypot(dx,dy)||1,a=Math.atan2(dy,dx);
   projs.push({
     x:TOWER_X+Math.cos(a)*BLEN, y:PIVOT_Y+Math.sin(a)*BLEN,
@@ -234,6 +295,7 @@ function triggerUlt(){
   lastUlt=ultIdx; ultIdx=(ultIdx+1)%ULTS.length;
   shake(25,0.75); pressure=0; pressureFullTimer=0;
   if(lastUlt===0){
+    snd_flush();
     // FLUSH — wipe all enemies
     let n=0;
     for(const e of enemies){
@@ -245,6 +307,7 @@ function triggerUlt(){
     enemies=[];
     if(n>0)floater(W/2,H/2-80,`FLUSHED ${n} ENEMIES!`,C.neonGreen);
   } else if(lastUlt===1){
+    snd_freeze();
     // FREEZE — slow all to 12% for 5 sec
     for(const e of enemies){
       e.origSpd=e.spd; e.spd*=0.12; e.frozen=true; e.frozenT=5;
@@ -252,6 +315,7 @@ function triggerUlt(){
     }
     floater(W/2,H/2-80,'❄ DEEP FREEZE! ❄','#44aaff');
   } else {
+    snd_acid();
     // ACID RAIN — DoT on all for 5 sec
     for(const e of enemies){
       e.acid=true; e.acidT=5; e.acidDmg=16;
@@ -282,6 +346,7 @@ function update(dt){
     q.timer+=dt;
     while(q.timer>=q.iv&&q.rem>0){
       q.timer-=q.iv;q.rem--;
+      if(q.t==='boss')snd_boss();
       const d=ED[q.t];
       enemies.push({
         t:q.t,x:rnd(40,W-40),y:rnd(H+5,H+38),
@@ -311,8 +376,9 @@ function update(dt){
         text:PANEL_POOL.throne[Math.floor(Math.random()*PANEL_POOL.throne.length)],
         life:1,dec:1.2,sc:0.3,rot:rnd(-0.2,0.2)});
       floater(TOWER_X,TOWER_Y+90,`+${e.pDmg}💀`,C.neonRed);
+      snd_throne();
       e.dead=true;
-      if(pressure>=MAX_P){gs='game_over';return;}
+      if(pressure>=MAX_P){gs='game_over';recordRun();return;}
     }
   }
   enemies=enemies.filter(e=>!e.dead);
@@ -354,6 +420,7 @@ function update(dt){
           pressure=clamp(pressure+pg,0,MAX_P);
           burst(e.x,e.y,e.clr,13,190,8);
           burst(e.x,e.y,'#ffd700',5,140,4);
+          snd_splat();
           floater(e.x,e.y-10,`+${e.reward}💰`,C.neonGold);
           floater(e.x+22,e.y-26,`+${pg}💩`,C.neonGreen);
           panel(e.x,e.y,p.key);
@@ -379,6 +446,7 @@ function update(dt){
     if(tt.dot&&!near.acid){near.acid=true;near.acidT=3;near.acidDmg=tt.dmg*0.4;}
     if(near.hp<=0){
       near.dead=true;
+      snd_tower(tw.type);
       if(near.t==='blob'&&!near.split){
         for(let i=0;i<2;i++)enemies.push({t:'blob',x:near.x+rnd(-18,18),y:near.y+rnd(-18,18),hp:22,maxHp:22,spd:ED.blob.speed*1.4,r:13,clr:ED.blob.clr,rim:ED.blob.rim,reward:5,pDmg:7,pKill:3,armor:0.1,wb:rnd(0,Math.PI*2),wbs:rnd(2,4),dead:false,split:true});
       }
@@ -397,7 +465,7 @@ function update(dt){
   for(const p of panels){p.sc=lerp(p.sc,1.0,0.22);p.life-=p.dec*dt;}
   panels=panels.filter(p=>p.life>0);
 
-  if(queues.every(q=>q.rem<=0)&&enemies.length===0){gs='wave_clear';clearTimer=6;}
+  if(queues.every(q=>q.rem<=0)&&enemies.length===0){gs='wave_clear';clearTimer=6;snd_wave_clear();}
 }
 
 // ── DRAW: TOILET INTERIOR BACKGROUND ─────────────────────────────────────────
@@ -914,6 +982,9 @@ function drawHUD(){
   cx.fillStyle=isBoss?C.neonRed:C.neonGold;
   cx.font='bold 18px Orbitron,Arial';cx.textAlign='left';
   cx.fillText(isBoss?`⚠ WAVE ${waveIdx+1}`:`WAVE ${waveIdx+1}`,38,26);
+  const ch=getChapter(waveIdx);
+  cx.fillStyle='#443322';cx.font='8px JetBrains Mono';cx.textAlign='left';
+  cx.fillText(`CH.${ch.n} ${ch.name}`,38,42);
 
   // Enemy count
   const alive=enemies.length+queues.reduce((s,q)=>s+q.rem,0);
@@ -1080,6 +1151,9 @@ function drawGameOver(){
   cx.fillStyle=C.textMuted;cx.font='14px JetBrains Mono';
   cx.fillText(`Waves: ${waveIdx}`,W/2,H/2+18);
   cx.fillText(`Pressure: ${Math.round(pressure)}%`,W/2,H/2+44);
+  const _m=loadMeta();
+  if(_m.hs){cx.fillStyle='#554422';cx.font='11px JetBrains Mono';
+    cx.fillText(`Best: Wave ${(_m.bw||0)+1} · Score ${_m.hs}`,W/2,H/2+68);}
   const ry=H/2+78;
   rRect(W/2-110,ry,220,60,12,'#6a1a00','#ff3300',2.5);
   cx.fillStyle=C.neonGold;cx.font='bold 22px Orbitron,Arial';
@@ -1111,7 +1185,10 @@ function drawMenu(){
   cx.beginPath();cx.moveTo(80,WATER_Y+168);cx.lineTo(W-80,WATER_Y+168);cx.stroke();
 
   cx.fillStyle='#886644';cx.font='13px JetBrains Mono';
-  cx.fillText('Aim · Fire · FLUSH',W/2,WATER_Y+198);
+  cx.fillText('Aim · Fire · FLUSH',W/2,WATER_Y+195);
+  const _mm=loadMeta();
+  if(_mm.hs){cx.fillStyle='#443322';cx.font='10px JetBrains Mono';
+    cx.fillText(`Best: Wave ${(_mm.bw||0)+1} · ${_mm.hs} slime  (run #${_mm.runs||1})`,W/2,WATER_Y+215,W-50);}
 
   // Start button
   const sy=WATER_Y+226;
@@ -1172,6 +1249,7 @@ function loop(ts){
 // ── INPUT ─────────────────────────────────────────────────────────────────────
 function toG(cx2,cy2){const r=cv.getBoundingClientRect();return{x:(cx2-r.left)/SC,y:(cy2-r.top)/SC};}
 function onDown(cx2,cy2){
+  getAC(); // resume AudioContext on first user gesture
   const p=toG(cx2,cy2);
   if(gs==='menu'){
     const sy=WATER_Y+226;
