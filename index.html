@@ -1241,19 +1241,17 @@ function drawWaveClear(){
   cx.fillStyle=C.neonGold;cx.fillRect(W/2-90,H/2+76,180,8);cx.restore();
   // Next wave enemy preview
   const nextWave=WD[Math.min(waveIdx+1,WD.length-1)];
-  const eNames={virus:'VIRUS',worm:'WORM',bacteria:'BACT',fungus:'FUNG',leech:'LECH',larvae:'LARV×',blob:'BLOB',boss:'★BOSS'};
+  const eNames={virus:'VIRUS',worm:'WORM',bacteria:'BACT',fungus:'FUNG',leech:'LECH',larvae:'LARV',blob:'BLOB',boss:'★BOSS'};
   const preview=nextWave.map(g=>`${eNames[g.t]||g.t}×${g.n}`).join('  ');
-  cx.fillStyle='#774433';cx.font='bold 11px Orbitron,Arial';cx.textAlign='center';
-  cx.fillText('INCOMING:',W/2,H/2+88,W-50);
+  cx.fillStyle='#774433';cx.font='bold 10px Orbitron,Arial';cx.textAlign='center';
+  cx.fillText('NEXT WAVE:',W/2,H/2+84,W-50);
   cx.fillStyle=nextWave.some(g=>g.t==='boss')?C.neonRed:'#cc7733';
-  cx.font='12px JetBrains Mono';cx.fillText(preview,W/2,H/2+104,W-40);
-  cx.fillStyle='#554422';cx.font='11px JetBrains Mono';
-  cx.fillText('Next wave incoming…',W/2,H/2+120);
+  cx.font='11px JetBrains Mono';cx.fillText(preview,W/2,H/2+98,W-44);
   // Shop
   if(shopOffers.length){
     cx.fillStyle='#886633';cx.font='bold 9px Orbitron,Arial';cx.textAlign='center';
-    cx.fillText('UPGRADES',W/2,H/2+110);
-    const sw=82,sh=42,sy=H/2+116,sx0=(W-shopOffers.length*(sw+6))/2;
+    cx.fillText('UPGRADES',W/2,H/2+116);
+    const sw=82,sh=42,sy=H/2+122,sx0=(W-shopOffers.length*(sw+6))/2;
     shopOffers.forEach((u,i)=>{
       const bx=sx0+i*(sw+6);
       const canBuy=gold>=u.cost;
@@ -1265,8 +1263,10 @@ function drawWaveClear(){
       cx.fillText(u.cost?u.cost+'g':'FREE',bx+sw/2,sy+41);
     });
   }
-  cx.fillStyle='#443311';cx.font='bold 9px JetBrains Mono';cx.textAlign='center';
-  cx.fillText('SIDE SLOTS → 🔥40g  ❄35g  ☣50g',W/2,H/2+168,W-50);
+  cx.fillStyle='#554422';cx.font='11px JetBrains Mono';
+  cx.fillText('Next wave incoming…',W/2,H/2+172);
+  cx.fillStyle='#443311';cx.font='bold 9px JetBrains Mono';
+  cx.fillText('SIDE SLOTS → 🔥40g  ❄35g  ☣50g',W/2,H/2+184,W-50);
 }
 
 // ── GAME OVER ─────────────────────────────────────────────────────────────────
@@ -1424,7 +1424,7 @@ function loop(ts){
     drawCannon();
     drawVignette();
     drawUltFlash();
-    drawHUD();
+    if(gs!=='game_over') drawHUD();
     for(const f of floaters) drawFloater(f);
     for(const p of panels)   drawPanel(p);
     if(gs==='wave_clear') drawWaveClear();
@@ -1463,7 +1463,7 @@ function onDown(cx2,cy2){
   if(gs==='wave_clear'){
     // Shop
     if(shopOffers.length){
-      const sw=82,sh=42,sy=H/2+116,sx0=(W-shopOffers.length*(sw+6))/2;
+      const sw=82,sh=42,sy=H/2+122,sx0=(W-shopOffers.length*(sw+6))/2;
       for(let i=0;i<shopOffers.length;i++){
         const u=shopOffers[i],bx=sx0+i*(sw+6);
         if(p.x>=bx&&p.x<=bx+sw&&p.y>=sy&&p.y<=sy+sh&&gold>=u.cost){
