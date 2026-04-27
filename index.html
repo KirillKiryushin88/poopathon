@@ -127,6 +127,7 @@ const ULTS=[
 let gs='menu';
 let enemies=[],projs=[],parts=[],floaters=[],panels=[],towers=[];
 let ultIdx=0,lastUlt=0,currentChapter=0;
+let lives=3;
 let pressure=0,gold=0,score=0,waveIdx=0;
 let modeIdx=0,fireCd=0;
 let aimAngle=Math.PI/2, aimActive=false;
@@ -200,6 +201,9 @@ function snd_acid(){
 function snd_wave_clear(){[200,300,450,600].forEach((fr,i)=>{setTimeout(()=>_tone(fr,'square',0.18,0.11),i*95);});}
 function snd_tower(type){if(type===0)_noise(0.08,0.18,48);else if(type===1)_tone(1800,'sine',0.14,0.11);else _noise(0.11,0.14,30);}
 function snd_boss(){_tone(52,'sawtooth',0.8,0.44,30);}
+function hap(ms){try{navigator.vibrate&&navigator.vibrate(ms);}catch{}}
+
+// ── META PROGRESSION ──────────────────────────────────────────────────────────
 
 // ── META PROGRESSION ──────────────────────────────────────────────────────────
 const MK='poop_meta';
@@ -298,7 +302,7 @@ function triggerUlt(){
   lastUlt=ultIdx; ultIdx=(ultIdx+1)%ULTS.length;
   shake(25,0.75); pressure=0; pressureFullTimer=0;
   if(lastUlt===0){
-    snd_flush();
+    snd_flush(); hap([20,20,20,20,60]);
     // FLUSH — wipe all enemies
     let n=0;
     for(const e of enemies){
@@ -310,7 +314,7 @@ function triggerUlt(){
     enemies=[];
     if(n>0)floater(W/2,H/2-80,`FLUSHED ${n} ENEMIES!`,C.neonGreen);
   } else if(lastUlt===1){
-    snd_freeze();
+    snd_freeze(); hap([30,15,30]);
     // FREEZE — slow all to 12% for 5 sec
     for(const e of enemies){
       e.origSpd=e.spd; e.spd*=0.12; e.frozen=true; e.frozenT=5;
@@ -379,9 +383,17 @@ function update(dt){
         text:PANEL_POOL.throne[Math.floor(Math.random()*PANEL_POOL.throne.length)],
         life:1,dec:1.2,sc:0.3,rot:rnd(-0.2,0.2)});
       floater(TOWER_X,TOWER_Y+90,`+${e.pDmg}💀`,C.neonRed);
-      snd_throne();
+      snd_throne(); hap(40);
       e.dead=true;
-      if(pressure>=MAX_P){gs='game_over';recordRun();return;}
+      if(pressure>=MAX_P){
+        lives--;
+        if(lives<=0){gs='game_over';recordRun();return;}
+        pressure=70; // survive with reduced pressure
+        hap([80,40,80]);
+        floater(W/2,WATER_Y+60,`💔 LIFE LOST! ${lives} left`,'#ff4444');
+        shake(20,0.5);
+        return;
+      }
     }
   }
   enemies=enemies.filter(e=>!e.dead);
@@ -468,7 +480,10 @@ function update(dt){
   for(const p of panels){p.sc=lerp(p.sc,1.0,0.22);p.life-=p.dec*dt;}
   panels=panels.filter(p=>p.life>0);
 
-  if(queues.every(q=>q.rem<=0)&&enemies.length===0){gs='wave_clear';clearTimer=6;snd_wave_clear();}
+  if(queues.every(q=>q.rem<=0)&&enemies.length===0){
+    gs='wave_clear';clearTimer=6;snd_wave_clear();
+    if(waveIdx>0&&waveIdx%3===0&&lives<3){lives++;floater(W/2,WATER_Y+40,'❤ EXTRA LIFE!','#ff6655');}
+  }
 }
 
 // ── DRAW: TOILET INTERIOR BACKGROUND ─────────────────────────────────────────
@@ -999,9 +1014,13 @@ function drawHUD(){
   cx.fillText(`👾 ${alive}`,W/2,24);
   cx.fillStyle=C.textMuted;cx.font='9px JetBrains Mono';cx.fillText('ENEMIES',W/2,38);
 
+  // Lives
+  cx.textAlign='right';cx.font='bold 13px JetBrains Mono';
+  cx.fillStyle=lives>1?'#ff6655':'#ff2222';
+  cx.fillText('❤'.repeat(lives)+'🖤'.repeat(Math.max(0,3-lives)),W-8,26,110);
   // Gold
-  cx.fillStyle=C.neonGold;cx.font='bold 18px Orbitron,Arial';cx.textAlign='right';
-  cx.fillText(`${gold}💰`,W-12,26);
+  cx.fillStyle=C.neonGold;cx.font='bold 15px Orbitron,Arial';cx.textAlign='right';
+  cx.fillText(`${gold}💰`,W-8,44,100);
 
   // Horizontal pressure bar
   const px=38,py=50,pw=W-76,ph=14,ratio=pressure/MAX_P;
@@ -1134,8 +1153,16 @@ function drawWaveClear(){
   rRect(W/2-90,H/2+76,180,8,4,'#1a0500',null);
   cx.save();cx.beginPath();cx.roundRect(W/2-90,H/2+76,180*Math.max(0,prog),8,4);cx.clip();
   cx.fillStyle=C.neonGold;cx.fillRect(W/2-90,H/2+76,180,8);cx.restore();
+  // Next wave enemy preview
+  const nextWave=WD[Math.min(waveIdx+1,WD.length-1)];
+  const emojis={virus:'🦠',worm:'🪱',bacteria:'🦠',fungus:'🍄',leech:'🐛',larvae:'🐛',blob:'💚',boss:'💀'};
+  const preview=nextWave.map(g=>`${emojis[g.t]||'?'}×${g.n}`).join('  ');
+  cx.fillStyle='#774433';cx.font='bold 11px Orbitron,Arial';cx.textAlign='center';
+  cx.fillText('INCOMING:',W/2,H/2+88,W-50);
+  cx.fillStyle=nextWave.some(g=>g.t==='boss')?C.neonRed:'#cc7733';
+  cx.font='12px JetBrains Mono';cx.fillText(preview,W/2,H/2+104,W-40);
   cx.fillStyle='#554422';cx.font='11px JetBrains Mono';
-  cx.fillText('Next wave incoming…',W/2,H/2+96);
+  cx.fillText('Next wave incoming…',W/2,H/2+120);
   cx.fillStyle='#443311';cx.font='9px JetBrains Mono';
   cx.fillText('SIDE SLOTS: tap to build  🔥40  ❄35  ☣50',W/2,H/2+112,W-50);
 }
@@ -1154,8 +1181,8 @@ function drawGameOver(){
   cx.fillStyle=C.neonGold;cx.font='bold 17px JetBrains Mono';
   cx.fillText(`Slime: ${score}`,W/2,H/2-10);
   cx.fillStyle=C.textMuted;cx.font='14px JetBrains Mono';
-  cx.fillText(`Waves: ${waveIdx}`,W/2,H/2+18);
-  cx.fillText(`Pressure: ${Math.round(pressure)}%`,W/2,H/2+44);
+  cx.fillText(`Waves survived: ${waveIdx}`,W/2,H/2+18,260);
+  cx.fillText(`CH.${currentChapter+1} · ${CHAPS[currentChapter].name}`,W/2,H/2+44,260);
   const _m=loadMeta();
   if(_m.hs){cx.fillStyle='#554422';cx.font='11px JetBrains Mono';
     cx.fillText(`Best: Wave ${(_m.bw||0)+1} · Score ${_m.hs}`,W/2,H/2+68);}
@@ -1389,7 +1416,7 @@ function startGame(startWv=0){
   modeIdx=0;fireCd=0;
   aimAngle=Math.PI/2;aimActive=false;
   pressureFullTimer=0;touchDownT=0;gestureSwiped=false;
-  towers=[];ultIdx=0;lastUlt=0;
+  towers=[];ultIdx=0;lastUlt=0;lives=3;
   shakeT=0;shakeI=0;vigA=0;
   ultActive=false;ultTimer=0;
   gs='playing';startWave(startWv);
