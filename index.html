@@ -225,6 +225,40 @@ function getChapter(w){
   return{n:3,name:'BIO LAB'};
 }
 
+// ── IMPACT VFX ────────────────────────────────────────────────────────────────
+let rings=[],dmgNums=[],screenFlash=0,screenFlashClr='#ffffff';
+function addRing(x,y,clr,maxR=60,speed=200){rings.push({x,y,clr,r:6,maxR,speed,a:0.9});}
+function dmgNum(x,y,txt,clr='#ff4444'){dmgNums.push({x,y,txt,clr,vy:-55,life:1,dec:1.8});}
+function flashScreen(clr,strength=0.18){screenFlash=Math.max(screenFlash,strength);screenFlashClr=clr;}
+function updateVFX(dt){
+  rings.forEach(r=>{r.r+=r.speed*dt;r.a=Math.max(0,r.a-(r.a/((r.maxR-r.r+1)*0.01+0.2))*dt*2.5);});
+  rings=rings.filter(r=>r.r<r.maxR&&r.a>0.01);
+  dmgNums.forEach(d=>{d.y+=d.vy*dt;d.vy*=0.88;d.life-=d.dec*dt;});
+  dmgNums=dmgNums.filter(d=>d.life>0);
+  screenFlash=Math.max(0,screenFlash-dt*6);
+}
+function drawVFX(){
+  rings.forEach(r=>{
+    cx.globalAlpha=r.a;cx.strokeStyle=r.clr;cx.lineWidth=3;
+    cx.beginPath();cx.arc(r.x,r.y,r.r,0,Math.PI*2);cx.stroke();
+    cx.globalAlpha=r.a*0.3;cx.fillStyle=r.clr;
+    cx.beginPath();cx.arc(r.x,r.y,r.r,0,Math.PI*2);cx.fill();
+    cx.globalAlpha=1;
+  });
+  dmgNums.forEach(d=>{
+    cx.globalAlpha=d.life;
+    cx.font=`bold 16px Orbitron,Arial`;cx.textAlign='center';
+    cx.strokeStyle='rgba(0,0,0,0.7)';cx.lineWidth=3;
+    cx.strokeText(d.txt,d.x,d.y,80);
+    cx.fillStyle=d.clr;cx.fillText(d.txt,d.x,d.y,80);
+    cx.globalAlpha=1;
+  });
+  if(screenFlash>0.01){
+    cx.fillStyle=screenFlashClr;cx.globalAlpha=screenFlash;
+    cx.fillRect(0,0,W,H);cx.globalAlpha=1;
+  }
+}
+
 // ── PARTICLES ─────────────────────────────────────────────────────────────────
 function burst(x,y,clr,n,spd,sz) {
   for(let i=0;i<n;i++){
@@ -336,6 +370,7 @@ function triggerUlt(){
 function update(dt){
   if(gs!=='playing')return;
   waterOffset=(waterOffset+dt*18)%(Math.PI*2);
+  updateVFX(dt);
   fireCd=Math.max(0,fireCd-dt);
   if(shakeT>0){shakeT-=dt;if(shakeT<=0)shakeI=0;}
   if(vigA>0)vigA=Math.max(0,vigA-dt*3);
@@ -384,6 +419,8 @@ function update(dt){
         life:1,dec:1.2,sc:0.3,rot:rnd(-0.2,0.2)});
       floater(TOWER_X,TOWER_Y+90,`+${e.pDmg}💀`,C.neonRed);
       snd_throne(); hap(40);
+      addRing(TOWER_X,TOWER_Y,'#ff3300',90,260);
+      flashScreen('#ff0000',0.25);
       e.dead=true;
       if(pressure>=MAX_P){
         lives--;
@@ -417,8 +454,8 @@ function update(dt){
         burst(e.x,e.y,e.clr,5,130,5);
         if(p.splash>0){
           p.key==='gas'?
-            (burst(p.x,p.y,'#22C55E',14,180,7),splatRing(p.x,p.y,p.splash,'rgba(30,160,0,0.35)')):
-            (burst(p.x,p.y,'#7B4020',16,200,7),splatRing(p.x,p.y,p.splash,'rgba(150,60,0,0.35)'));
+            (burst(p.x,p.y,'#22C55E',14,180,7),splatRing(p.x,p.y,p.splash,'rgba(30,160,0,0.35)'),addRing(p.x,p.y,'#22C55E',p.splash,300)):
+            (burst(p.x,p.y,'#7B4020',16,200,7),splatRing(p.x,p.y,p.splash,'rgba(150,60,0,0.35)'),addRing(p.x,p.y,'#ff8800',p.splash,300));
           shake(9,0.28);
           for(const e2 of enemies)
             if(!e2.dead&&e2!==e&&dist(p.x,p.y,e2.x,e2.y)<p.splash)e2.hp-=p.dmg*(1-e2.armor)*0.6;
@@ -436,6 +473,10 @@ function update(dt){
           burst(e.x,e.y,e.clr,13,190,8);
           burst(e.x,e.y,'#ffd700',5,140,4);
           snd_splat();
+          addRing(e.x,e.y,e.clr,e.r*4+40,180);
+          dmgNum(e.x,e.y-e.r,`-${Math.round(p.dmg*(1-e.armor))}`,e.t==='boss'?'#ff2200':'#ffaa00');
+          if(e.t==='boss')flashScreen('#ff2200',0.22);
+          else if(e.t==='bacteria')flashScreen('#cc8800',0.10);
           floater(e.x,e.y-10,`+${e.reward}💰`,C.neonGold);
           floater(e.x+22,e.y-26,`+${pg}💩`,C.neonGreen);
           panel(e.x,e.y,p.key);
@@ -462,6 +503,7 @@ function update(dt){
     if(near.hp<=0){
       near.dead=true;
       snd_tower(tw.type);
+      addRing(near.x,near.y,TT[tw.type].clr,near.r*3+30,200);
       if(near.t==='blob'&&!near.split){
         for(let i=0;i<2;i++)enemies.push({t:'blob',x:near.x+rnd(-18,18),y:near.y+rnd(-18,18),hp:22,maxHp:22,spd:ED.blob.speed*1.4,r:13,clr:ED.blob.clr,rim:ED.blob.rim,reward:5,pDmg:7,pKill:3,armor:0.1,wb:rnd(0,Math.PI*2),wbs:rnd(2,4),dead:false,split:true});
       }
@@ -1055,8 +1097,6 @@ function drawHUD(){
       cx.restore();
     }
     rRect(bx,by,bw,bh,4,null,'#440800',1.5);
-    cx.fillStyle=ratio>=1?C.neonRed:'#553300';
-    cx.font='15px Arial';cx.textAlign='center';cx.fillText('💀',bx+bw/2,by-5);
   }
 
   // ── FIRE MODE BUTTONS ──
@@ -1155,16 +1195,16 @@ function drawWaveClear(){
   cx.fillStyle=C.neonGold;cx.fillRect(W/2-90,H/2+76,180,8);cx.restore();
   // Next wave enemy preview
   const nextWave=WD[Math.min(waveIdx+1,WD.length-1)];
-  const emojis={virus:'🦠',worm:'🪱',bacteria:'🦠',fungus:'🍄',leech:'🐛',larvae:'🐛',blob:'💚',boss:'💀'};
-  const preview=nextWave.map(g=>`${emojis[g.t]||'?'}×${g.n}`).join('  ');
+  const eNames={virus:'VIRUS',worm:'WORM',bacteria:'BACT',fungus:'FUNG',leech:'LECH',larvae:'LARV×',blob:'BLOB',boss:'★BOSS'};
+  const preview=nextWave.map(g=>`${eNames[g.t]||g.t}×${g.n}`).join('  ');
   cx.fillStyle='#774433';cx.font='bold 11px Orbitron,Arial';cx.textAlign='center';
   cx.fillText('INCOMING:',W/2,H/2+88,W-50);
   cx.fillStyle=nextWave.some(g=>g.t==='boss')?C.neonRed:'#cc7733';
   cx.font='12px JetBrains Mono';cx.fillText(preview,W/2,H/2+104,W-40);
   cx.fillStyle='#554422';cx.font='11px JetBrains Mono';
   cx.fillText('Next wave incoming…',W/2,H/2+120);
-  cx.fillStyle='#443311';cx.font='9px JetBrains Mono';
-  cx.fillText('SIDE SLOTS: tap to build  🔥40  ❄35  ☣50',W/2,H/2+112,W-50);
+  cx.fillStyle='#664422';cx.font='bold 10px JetBrains Mono';
+  cx.fillText('SIDE SLOTS → 🔥40g  ❄35g  ☣50g',W/2,H/2+112,W-50);
 }
 
 // ── GAME OVER ─────────────────────────────────────────────────────────────────
@@ -1217,9 +1257,9 @@ function drawChapterSelect(){
     rRect(18,cy,W-36,cH,12,bclr,sclr,locked?1.5:2.5);
 
     if(locked){
-      cx.fillStyle='#442211';cx.font='bold 13px Orbitron,Arial';cx.textAlign='center';
-      cx.fillText('🔒 LOCKED',W/2,cy+44,W-60);
-      cx.fillStyle='#331a08';cx.font='10px JetBrains Mono';
+      cx.fillStyle='#997755';cx.font='bold 14px Orbitron,Arial';cx.textAlign='center';
+      cx.fillText('LOCKED',W/2,cy+44,W-60);
+      cx.fillStyle='#775533';cx.font='11px JetBrains Mono';
       cx.fillText(`Reach wave ${ch.req+1} to unlock`,W/2,cy+66,W-60);
     } else {
       // Chapter badge
@@ -1292,6 +1332,7 @@ function loop(ts){
 
   if(gs==='wave_clear'){
     waterOffset=(waterOffset+dt*18)%(Math.PI*2);
+    updateVFX(dt);
     clearTimer-=dt;
     for(const p of parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=0.9;p.vy*=0.9;p.life-=p.dec*dt;}
     parts=parts.filter(p=>p.life>0);
@@ -1317,6 +1358,7 @@ function loop(ts){
     for(const p of parts)   drawPart(p);
     for(const p of projs)   drawProj(p);
     for(const e of enemies) drawEnemy(e);
+    drawVFX();
     drawCannon();
     drawVignette();
     drawUltFlash();
@@ -1411,7 +1453,7 @@ cv.addEventListener('touchend',  e=>{e.preventDefault();onUp();},{passive:false}
 // ── INIT ──────────────────────────────────────────────────────────────────────
 function startGame(startWv=0){
   currentChapter=[0,3,6].indexOf(startWv); if(currentChapter<0)currentChapter=0;
-  enemies=[];projs=[];parts=[];floaters=[];panels=[];
+  enemies=[];projs=[];parts=[];floaters=[];panels=[];rings=[];dmgNums=[];screenFlash=0;
   pressure=0;gold=0;score=0;
   modeIdx=0;fireCd=0;
   aimAngle=Math.PI/2;aimActive=false;
