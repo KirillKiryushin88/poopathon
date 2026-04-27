@@ -143,7 +143,7 @@ let modeIdx=0,fireCd=0;
 let aimAngle=Math.PI/2, aimActive=false;
 let shakeT=0,shakeI=0;
 let queues=[];
-let clearTimer=0;
+let clearTimer=0,bossWarnTimer=0,chapterClearTimer=0;
 let vigA=0;
 let ultActive=false,ultTimer=0;
 let lastTs=0;
@@ -447,7 +447,7 @@ function update(dt){
       e.dead=true;
       if(pressure>=MAX_P){
         lives--;
-        if(lives<=0){gs='game_over';recordRun();return;}
+        if(lives<=0){gs='game_over';recordRun();stopDrone();return;}
         pressure=70; // survive with reduced pressure
         hap([80,40,80]);
         floater(W/2,WATER_Y+60,`💔 LIFE LOST! ${lives} left`,'#ff4444');
@@ -1196,6 +1196,67 @@ function drawUltFlash(){
   }
 }
 
+// ── AMBIENT ───────────────────────────────────────────────────────────────────
+let _drone=null;
+function startDrone(){
+  if(_drone)return;
+  const a=getAC(),o=a.createOscillator(),g=a.createGain(),lfo=a.createOscillator(),lfog=a.createGain();
+  o.type='sine';o.frequency.value=55;
+  lfo.type='sine';lfo.frequency.value=0.12;lfog.gain.value=4;
+  lfo.connect(lfog);lfog.connect(o.frequency);
+  g.gain.value=0.04;o.connect(g);g.connect(a.destination);
+  o.start();lfo.start();_drone={o,g,lfo};
+}
+function stopDrone(){
+  if(!_drone)return;
+  try{_drone.g.gain.exponentialRampToValueAtTime(0.0001,getAC().currentTime+0.8);
+  _drone.o.stop(getAC().currentTime+0.9);_drone.lfo.stop(getAC().currentTime+0.9);}catch{}
+  _drone=null;
+}
+
+// ── BOSS WARNING ──────────────────────────────────────────────────────────────
+function drawBossWarn(){
+  const t=1-bossWarnTimer/2.5,pulse=Math.sin(Date.now()*0.012)*0.5+0.5;
+  cx.fillStyle=`rgba(80,0,0,${0.82+pulse*0.1})`;cx.fillRect(0,0,W,H);
+  cx.fillStyle=`rgba(255,${Math.floor(pulse*60)},0,${0.9+pulse*0.1})`;
+  cx.font='bold 48px Orbitron,Arial';cx.textAlign='center';
+  cx.fillText('⚠ BOSS',W/2,H/2-40,W-30);
+  cx.fillText('INCOMING',W/2,H/2+20,W-30);
+  cx.fillStyle='rgba(255,100,0,0.7)';cx.font='bold 14px JetBrains Mono';
+  const nextBoss=WD[Math.min(waveIdx+1,WD.length-1)].find(g=>g.t==='boss');
+  if(nextBoss)cx.fillText(`+ ${nextBoss.n} BOSS · WAVE ${waveIdx+2}`,W/2,H/2+58,W-40);
+  cx.fillStyle='rgba(255,60,0,0.4)';cx.lineWidth=3+pulse*2;cx.strokeStyle='rgba(255,100,0,0.6)';
+  cx.beginPath();cx.arc(W/2,H/2-10,80+pulse*15,0,Math.PI*2);cx.stroke();
+}
+
+// ── CHAPTER CLEAR ─────────────────────────────────────────────────────────────
+function drawChapterClear(){
+  cx.fillStyle='rgba(0,0,0,0.88)';cx.fillRect(0,0,W,H);
+  const ch=CHAPS[currentChapter];
+  const stars=lives>=3?3:lives>=2?2:1;
+  rRect(W/2-155,H/2-130,310,300,16,'rgba(8,4,0,0.97)',ch.clr,3);
+  cx.fillStyle=ch.clr;cx.font='bold 11px Orbitron,Arial';cx.textAlign='center';
+  cx.fillText(`CHAPTER ${ch.n} COMPLETE`,W/2,H/2-98,280);
+  cx.fillStyle=C.neonGold;cx.font='bold 28px Orbitron,Arial';
+  cx.fillText(ch.name,W/2,H/2-64,280);
+  cx.fillStyle='#ffdd55';cx.font='36px Arial';
+  cx.fillText('★'.repeat(stars)+'☆'.repeat(3-stars),W/2,H/2-22);
+  cx.fillStyle=C.textMuted;cx.font='13px JetBrains Mono';
+  cx.fillText(`Score: ${score}`,W/2,H/2+10);
+  cx.fillText(`Lives: ${lives}/3`,W/2,H/2+32);
+  if(currentChapter<2){
+    const next=CHAPS[currentChapter+1];
+    cx.fillStyle='#886644';cx.font='11px JetBrains Mono';
+    cx.fillText(`${next.name} unlocked!`,W/2,H/2+58,280);
+  } else {
+    cx.fillStyle=C.neonGold;cx.font='bold 11px Orbitron,Arial';
+    cx.fillText('ALL CHAPTERS COMPLETE!',W/2,H/2+58,280);
+  }
+  rRect(W/2-110,H/2+80,220,54,12,'#1a0800','#ff4400',2);
+  cx.fillStyle=C.neonGold;cx.font='bold 18px Orbitron,Arial';
+  cx.fillText('CHAPTER SELECT',W/2,H/2+113,200);
+}
+
 // ── WAVE CLEAR ────────────────────────────────────────────────────────────────
 function drawWaveClear(){
   // Tower slots on sides (interactive during wave_clear)
@@ -1392,9 +1453,19 @@ function loop(ts){
   const dt=Math.min((ts-lastTs)/1000,0.05);
   lastTs=ts;
 
+  if(gs==='boss_warn'){
+    bossWarnTimer-=dt;
+    if(bossWarnTimer<=0){gs='playing';startWave(waveIdx+1);}
+    return;
+  }
+  if(gs==='chapter_clear'){
+    chapterClearTimer-=dt;return;
+  }
   if(gs==='wave_clear'){
     waterOffset=(waterOffset+dt*18)%(Math.PI*2);
     updateVFX(dt);
+    // Pressure decays after 2s grace
+    if(clearTimer<4)pressure=Math.max(0,pressure-4*dt);
     clearTimer-=dt;
     for(const p of parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=0.9;p.vy*=0.9;p.life-=p.dec*dt;}
     parts=parts.filter(p=>p.life>0);
@@ -1402,7 +1473,18 @@ function loop(ts){
     floaters=floaters.filter(f=>f.life>0);
     for(const p of panels){p.sc=lerp(p.sc,1.0,0.22);p.life-=p.dec*dt;}
     panels=panels.filter(p=>p.life>0);
-    if(clearTimer<=0){gs='playing';startWave(waveIdx+1);}
+    if(clearTimer<=0){
+      const nextIdx=waveIdx+1;
+      if([2,5,8].includes(waveIdx)){
+        // Chapter complete — save progress
+        const m=loadMeta();m.bw=Math.max(m.bw||0,nextIdx);saveMeta(m);
+        chapterClearTimer=5;gs='chapter_clear';stopDrone();
+      } else if(nextIdx<WD.length&&WD[nextIdx].some(g=>g.t==='boss')){
+        bossWarnTimer=2.5;gs='boss_warn';
+      } else {
+        gs='playing';startWave(nextIdx);
+      }
+    }
   }else{
     update(dt);
   }
@@ -1427,8 +1509,10 @@ function loop(ts){
     if(gs!=='game_over') drawHUD();
     for(const f of floaters) drawFloater(f);
     for(const p of panels)   drawPanel(p);
-    if(gs==='wave_clear') drawWaveClear();
-    if(gs==='game_over')  drawGameOver();
+    if(gs==='wave_clear')    drawWaveClear();
+    if(gs==='boss_warn')     drawBossWarn();
+    if(gs==='chapter_clear') drawChapterClear();
+    if(gs==='game_over')     drawGameOver();
   }
 
   if(shakeT>0)cx.restore();
@@ -1460,6 +1544,11 @@ function onDown(cx2,cy2){
     if(p.x>=W/2-110&&p.x<=W/2+110&&p.y>=ry&&p.y<=ry+60)startGame();
     return;
   }
+  if(gs==='chapter_clear'){
+    if(p.x>=W/2-110&&p.x<=W/2+110&&p.y>=H/2+80&&p.y<=H/2+134){gs='chapter_select';}
+    return;
+  }
+  if(gs==='boss_warn')return;
   if(gs==='wave_clear'){
     // Shop
     if(shopOffers.length){
@@ -1540,9 +1629,10 @@ function startGame(startWv=0){
   towers=[];ultIdx=0;lastUlt=0;lives=3;
   shopOffers=[];dmgMult=1;rateMult=1;splashMult=1;
   combo=0;comboTimer=0;comboMult=1;
+  bossWarnTimer=0;chapterClearTimer=0;stopDrone();
   shakeT=0;shakeI=0;vigA=0;
   ultActive=false;ultTimer=0;
-  gs='playing';startWave(startWv);
+  gs='playing';startWave(startWv);startDrone();
 }
 requestAnimationFrame(ts=>{lastTs=ts;requestAnimationFrame(loop);});
 </script>
