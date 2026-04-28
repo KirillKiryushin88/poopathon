@@ -138,6 +138,7 @@ let ultIdx=0,lastUlt=0,currentChapter=0;
 let lives=3;
 let shopOffers=[],dmgMult=1,rateMult=1,splashMult=1;
 let combo=0,comboTimer=0,comboMult=1;
+let toasts=[];
 let pressure=0,gold=0,score=0,waveIdx=0;
 let modeIdx=0,fireCd=0;
 let aimAngle=Math.PI/2, aimActive=false;
@@ -252,12 +253,25 @@ let rings=[],dmgNums=[],screenFlash=0,screenFlashClr='#ffffff';
 function addRing(x,y,clr,maxR=60,speed=200){rings.push({x,y,clr,r:6,maxR,speed,a:0.9});}
 function dmgNum(x,y,txt,clr='#ff4444'){dmgNums.push({x,y,txt,clr,vy:-55,life:1,dec:1.8});}
 function flashScreen(clr,strength=0.18){screenFlash=Math.max(screenFlash,strength);screenFlashClr=clr;}
+function toast(txt,clr='#ffdd55'){toasts.push({text:txt,timer:3.5,clr});}
 function updateVFX(dt){
   rings.forEach(r=>{r.r+=r.speed*dt;r.a=Math.max(0,r.a-(r.a/((r.maxR-r.r+1)*0.01+0.2))*dt*2.5);});
   rings=rings.filter(r=>r.r<r.maxR&&r.a>0.01);
   dmgNums.forEach(d=>{d.y+=d.vy*dt;d.vy*=0.88;d.life-=d.dec*dt;});
   dmgNums=dmgNums.filter(d=>d.life>0);
   screenFlash=Math.max(0,screenFlash-dt*6);
+  toasts.forEach(t=>t.timer-=dt);
+  toasts=toasts.filter(t=>t.timer>0);
+}
+function drawToasts(){
+  toasts.forEach((t,i)=>{
+    const a=Math.min(1,t.timer,3.5-t.timer*1.5+1.5);
+    cx.globalAlpha=Math.max(0,a);
+    rRect(20,FIELD_TOP+12+i*34,W-40,26,6,'rgba(0,0,0,0.88)','#886644',1.5);
+    cx.fillStyle=t.clr;cx.font='bold 11px Orbitron,Arial';cx.textAlign='center';
+    cx.fillText(t.text,W/2,FIELD_TOP+29+i*34,W-50);
+    cx.globalAlpha=1;
+  });
 }
 function drawVFX(){
   rings.forEach(r=>{
@@ -550,7 +564,7 @@ function update(dt){
   panels=panels.filter(p=>p.life>0);
 
   if(queues.every(q=>q.rem<=0)&&enemies.length===0){
-    gs='wave_clear';clearTimer=6;snd_wave_clear();genShop();
+    gs='wave_clear';clearTimer=6+Math.floor(waveIdx/3)*2;snd_wave_clear();genShop();
     if(waveIdx>0&&waveIdx%3===0&&lives<3){lives++;floater(W/2,WATER_Y+40,'❤ EXTRA LIFE!','#ff6655');}
   }
 }
@@ -1085,19 +1099,21 @@ function drawHUD(){
   cx.strokeStyle=C.hudBorder;cx.lineWidth=1;cx.strokeRect(0,FIELD_BOT,W,H-FIELD_BOT);
 
   // Wave
-  const isBoss=waveIdx>=WD.length-1;
-  cx.fillStyle=isBoss?C.neonRed:C.neonGold;
-  cx.font='bold 18px Orbitron,Arial';cx.textAlign='left';
-  cx.fillText(isBoss?`⚠ WAVE ${waveIdx+1}`:`WAVE ${waveIdx+1}`,38,26);
+  const endless=waveIdx>=WD.length,isBoss=!endless&&WD[waveIdx].some(g=>g.t==='boss');
+  cx.fillStyle=endless?'#cc44ff':isBoss?C.neonRed:C.neonGold;
+  cx.font='bold 16px Orbitron,Arial';cx.textAlign='left';
+  const wLabel=endless?`ENDLESS W${waveIdx-WD.length+2}`:isBoss?`⚠ WAVE ${waveIdx+1}`:`WAVE ${waveIdx+1}`;
+  cx.fillText(wLabel,38,26,140);
   const ch=getChapter(waveIdx);
   cx.fillStyle='#443322';cx.font='8px JetBrains Mono';cx.textAlign='left';
-  cx.fillText(`CH.${ch.n} ${ch.name}`,38,42);
+  cx.fillText(`CH.${ch.n} ${ch.name}`,38,40,140);
 
-  // Enemy count
+  // Center: score + enemies
   const alive=enemies.length+queues.reduce((s,q)=>s+q.rem,0);
-  cx.fillStyle='#ff6633';cx.font='bold 14px JetBrains Mono,monospace';cx.textAlign='center';
-  cx.fillText(`👾 ${alive}`,W/2,24);
-  cx.fillStyle=C.textMuted;cx.font='9px JetBrains Mono';cx.fillText('ENEMIES',W/2,38);
+  cx.fillStyle=C.neonGold;cx.font='bold 15px Orbitron,Arial';cx.textAlign='center';
+  cx.fillText(score,W/2,22,100);
+  cx.fillStyle=combo>1?'#ffdd00':'#ff6633';cx.font='bold 11px JetBrains Mono';
+  cx.fillText(combo>1?`${combo}x COMBO · 👾${alive}`:`👾 ${alive}`,W/2,38,160);
 
   // Lives
   cx.textAlign='right';cx.font='bold 13px JetBrains Mono';
@@ -1296,7 +1312,7 @@ function drawWaveClear(){
   const nu=ULTS[ultIdx];
   cx.fillStyle='#664400';cx.font='11px JetBrains Mono';
   cx.fillText(`Next ult: ${nu.em} ${nu.name}`,W/2,H/2+62);
-  const prog=1-clearTimer/6;
+  const _cMax=6+Math.floor(waveIdx/3)*2,prog=1-clearTimer/_cMax;
   rRect(W/2-90,H/2+76,180,8,4,'#1a0500',null);
   cx.save();cx.beginPath();cx.roundRect(W/2-90,H/2+76,180*Math.max(0,prog),8,4);cx.clip();
   cx.fillStyle=C.neonGold;cx.fillRect(W/2-90,H/2+76,180,8);cx.restore();
@@ -1476,8 +1492,11 @@ function loop(ts){
     if(clearTimer<=0){
       const nextIdx=waveIdx+1;
       if([2,5,8].includes(waveIdx)){
-        // Chapter complete — save progress
-        const m=loadMeta();m.bw=Math.max(m.bw||0,nextIdx);saveMeta(m);
+        // Chapter complete — save progress + check unlocks
+        const m=loadMeta();
+        const wasUnlocked=[true,(m.bw||0)>=3,(m.bw||0)>=6];
+        m.bw=Math.max(m.bw||0,nextIdx);saveMeta(m);
+        [3,6].forEach((req,i)=>{if(!wasUnlocked[i+1]&&m.bw>=req)toast(`${CHAPS[i+1].name} UNLOCKED!`,'#ffdd55');});
         chapterClearTimer=5;gs='chapter_clear';stopDrone();
       } else if(nextIdx<WD.length&&WD[nextIdx].some(g=>g.t==='boss')){
         bossWarnTimer=2.5;gs='boss_warn';
@@ -1513,6 +1532,7 @@ function loop(ts){
     if(gs==='boss_warn')     drawBossWarn();
     if(gs==='chapter_clear') drawChapterClear();
     if(gs==='game_over')     drawGameOver();
+    drawToasts();
   }
 
   if(shakeT>0)cx.restore();
@@ -1564,7 +1584,7 @@ function onDown(cx2,cy2){
     }
     for(let si=0;si<ALTAR_SLOTS.length;si++){
       const s=ALTAR_SLOTS[si];
-      if(dist(p.x,p.y,s.x,s.y)<28){
+      if(dist(p.x,p.y,s.x,s.y)<36){
         const idx=towers.findIndex(t=>t.slot===si);
         if(idx>=0){
           const tw=towers[idx],tt=TT[tw.type],lv=tw.level||0;
@@ -1629,7 +1649,7 @@ function startGame(startWv=0){
   towers=[];ultIdx=0;lastUlt=0;lives=3;
   shopOffers=[];dmgMult=1;rateMult=1;splashMult=1;
   combo=0;comboTimer=0;comboMult=1;
-  bossWarnTimer=0;chapterClearTimer=0;stopDrone();
+  bossWarnTimer=0;chapterClearTimer=0;toasts=[];stopDrone();
   shakeT=0;shakeI=0;vigA=0;
   ultActive=false;ultTimer=0;
   gs='playing';startWave(startWv);startDrone();
