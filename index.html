@@ -96,15 +96,30 @@ const ED = {
 
 // ── WAVES ─────────────────────────────────────────────────────────────────────
 const WD = [
+  // CH.1 THE SEWERS (0-2)
   [{ t:'virus',   n:8,  iv:1.0 }],
-  [{ t:'virus',   n:7,  iv:0.9 }, { t:'worm',    n:4, iv:1.4 }],
-  [{ t:'larvae',  n:18, iv:0.3 }, { t:'virus',   n:6, iv:0.8 }],
-  [{ t:'fungus',  n:5,  iv:1.2 }, { t:'worm',    n:4, iv:1.1 }, { t:'bacteria',n:1,iv:4.0 }],
-  [{ t:'leech',   n:8,  iv:0.9 }, { t:'virus',   n:10,iv:0.7 }],
-  [{ t:'blob',    n:3,  iv:2.2 }, { t:'larvae',  n:22,iv:0.28}, { t:'worm',    n:5,iv:1.0 }],
-  [{ t:'bacteria',n:4,  iv:2.5 }, { t:'leech',   n:6, iv:0.8 }, { t:'fungus',  n:4,iv:1.2 }],
-  [{ t:'boss',    n:1,  iv:30  }, { t:'virus',   n:14,iv:0.55}, { t:'worm',    n:8,iv:0.9 }],
-  [{ t:'boss',    n:2,  iv:20  }, { t:'leech',   n:10,iv:0.7 }, { t:'blob',    n:4,iv:1.8 }],
+  [{ t:'virus',   n:7,  iv:0.9 }, { t:'worm',     n:4,  iv:1.4 }],
+  [{ t:'larvae',  n:18, iv:0.3 }, { t:'virus',    n:6,  iv:0.8 }],
+  // CH.2 PUBLIC TOILET (3-5)
+  [{ t:'fungus',  n:5,  iv:1.2 }, { t:'worm',     n:4,  iv:1.1 }, { t:'bacteria',n:1, iv:4.0 }],
+  [{ t:'leech',   n:8,  iv:0.9 }, { t:'virus',    n:10, iv:0.7 }],
+  [{ t:'blob',    n:3,  iv:2.2 }, { t:'larvae',   n:22, iv:0.28}, { t:'worm',    n:5, iv:1.0 }],
+  // CH.3 BIO LAB (6-8)
+  [{ t:'bacteria',n:4,  iv:2.5 }, { t:'leech',    n:6,  iv:0.8 }, { t:'fungus',  n:4, iv:1.2 }],
+  [{ t:'boss',    n:1,  iv:30  }, { t:'virus',    n:14, iv:0.55}, { t:'worm',    n:8, iv:0.9 }],
+  [{ t:'boss',    n:2,  iv:20  }, { t:'leech',    n:10, iv:0.7 }, { t:'blob',    n:4, iv:1.8 }],
+  // CH.4 MUTANT COLLECTOR (9-11)
+  [{ t:'boss',    n:2,  iv:18  }, { t:'bacteria', n:6,  iv:2.0 }, { t:'leech',   n:8, iv:0.7 }],
+  [{ t:'blob',    n:5,  iv:1.6 }, { t:'fungus',   n:8,  iv:0.9 }, { t:'worm',    n:12,iv:0.7 }],
+  [{ t:'larvae',  n:35, iv:0.2 }, { t:'virus',    n:22, iv:0.35}, { t:'boss',    n:1, iv:25  }],
+  // CH.5 INFERNAL DRAIN (12-14)
+  [{ t:'boss',    n:3,  iv:16  }, { t:'bacteria', n:8,  iv:1.8 }, { t:'blob',    n:4, iv:1.6 }],
+  [{ t:'leech',   n:15, iv:0.6 }, { t:'fungus',   n:10, iv:0.9 }, { t:'worm',    n:15,iv:0.65}],
+  [{ t:'bacteria',n:10, iv:1.6 }, { t:'boss',     n:2,  iv:15  }, { t:'larvae',  n:40,iv:0.18}],
+  // CH.6 FINAL FLUSH (15-17)
+  [{ t:'boss',    n:4,  iv:14  }, { t:'blob',     n:6,  iv:1.5 }, { t:'bacteria',n:8, iv:1.5 }],
+  [{ t:'leech',   n:20, iv:0.5 }, { t:'larvae',   n:50, iv:0.14}, { t:'boss',    n:3, iv:14  }],
+  [{ t:'boss',    n:6,  iv:11  }, { t:'bacteria', n:12, iv:1.4 }, { t:'blob',    n:8, iv:1.2 }],
 ];
 
 // ── TOWERS ────────────────────────────────────────────────────────────────────
@@ -126,9 +141,12 @@ const ALTAR_SLOTS=[
   {x:W-22,y:WATER_Y+130},{x:W-22,y:WATER_Y+270},{x:W-22,y:WATER_Y+410},
 ];
 const ULTS=[
-  {name:'FLUSH', em:'🚽',clr:'#00e0c8'},
-  {name:'FREEZE',em:'❄', clr:'#44aaff'},
-  {name:'ACID',  em:'☠', clr:'#88ff00'},
+  {name:'FLUSH',    em:'🚽',clr:'#00e0c8'},
+  {name:'FREEZE',   em:'❄', clr:'#44aaff'},
+  {name:'ACID',     em:'☠', clr:'#88ff00'},
+  {name:'OVERLOAD', em:'💥',clr:'#ff8800'},
+  {name:'SWARM',    em:'⚡',clr:'#ffff00'},
+  {name:'GOLD RUSH',em:'💰',clr:'#ffd700'},
 ];
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
@@ -138,6 +156,7 @@ let ultIdx=0,lastUlt=0,currentChapter=0;
 let lives=3;
 let shopOffers=[],dmgMult=1,rateMult=1,splashMult=1;
 let combo=0,comboTimer=0,comboMult=1;
+let swarming=false,swarmTimer=0,goldRushTimer=0;
 let toasts=[];
 let pressure=0,gold=0,score=0,waveIdx=0;
 let modeIdx=0,fireCd=0;
@@ -243,9 +262,12 @@ function applyUpgrade(id){
 }
 
 function getChapter(w){
-  if(w<3)return{n:1,name:'THE SEWERS'};
-  if(w<6)return{n:2,name:'PUBLIC TOILET'};
-  return{n:3,name:'BIO LAB'};
+  if(w<3) return{n:1,name:'THE SEWERS'};
+  if(w<6) return{n:2,name:'PUBLIC TOILET'};
+  if(w<9) return{n:3,name:'BIO LAB'};
+  if(w<12)return{n:4,name:'MUTANT COLLECTOR'};
+  if(w<15)return{n:5,name:'INFERNAL DRAIN'};
+  return{n:6,name:'FINAL FLUSH'};
 }
 
 // ── IMPACT VFX ────────────────────────────────────────────────────────────────
@@ -391,14 +413,35 @@ function triggerUlt(){
       burst(e.x,e.y,'#44aaff',8,100,5);
     }
     floater(W/2,H/2-80,'❄ DEEP FREEZE! ❄','#44aaff');
-  } else {
+  } else if(lastUlt===2){
     snd_acid();
-    // ACID RAIN — DoT on all for 5 sec
-    for(const e of enemies){
-      e.acid=true; e.acidT=5; e.acidDmg=16;
-      burst(e.x,e.y,'#88ff00',6,80,4);
-    }
+    for(const e of enemies){e.acid=true;e.acidT=5;e.acidDmg=16;burst(e.x,e.y,'#88ff00',6,80,4);}
     floater(W/2,H/2-80,'☠ ACID RAIN! ☠','#88ff00');
+  } else if(lastUlt===3){
+    // OVERLOAD — 75% maxHp damage to all
+    hap([60,20,60,20,100]);
+    for(const e of enemies){
+      e.hp-=e.maxHp*0.75;
+      addRing(e.x,e.y,'#ff8800',e.r*5+50,320);
+      burst(e.x,e.y,'#ff8800',14,220,8);
+      if(e.hp<=0){e.dead=true;gold+=e.reward;score+=e.reward;}
+    }
+    enemies=enemies.filter(e=>!e.dead);
+    shake(30,0.9);flashScreen('#ff6600',0.28);
+    floater(W/2,H/2-80,'💥 OVERLOAD!','#ff8800');
+    _tone(80,'sawtooth',0.6,0.5,20);
+  } else if(lastUlt===4){
+    // SWARM — 3× fire rate for 6s
+    swarmTimer=6;swarming=true;
+    flashScreen('#ffff00',0.15);
+    floater(W/2,H/2-80,'⚡ SWARM! 6s','#ffff00');
+    _tone(880,'square',0.12,0.2);
+  } else {
+    // GOLD RUSH — 5× gold for 20s
+    goldRushTimer=20;
+    flashScreen('#ffd700',0.12);
+    floater(W/2,H/2-80,'💰 GOLD RUSH! 20s','#ffd700');
+    _tone(660,'sine',0.15,0.18);
   }
 }
 
@@ -409,6 +452,8 @@ function update(dt){
   updateVFX(dt);
   fireCd=Math.max(0,fireCd-dt);
   if(comboTimer>0){comboTimer-=dt;}else if(combo>0){combo=0;comboMult=1;}
+  if(swarmTimer>0){swarmTimer-=dt;if(swarmTimer<=0){swarming=false;}}
+  if(goldRushTimer>0)goldRushTimer-=dt;
   if(shakeT>0){shakeT-=dt;if(shakeT<=0)shakeI=0;}
   if(vigA>0)vigA=Math.max(0,vigA-dt*3);
   if(ultActive){ultTimer-=dt;if(ultTimer<=0)ultActive=false;}
@@ -476,7 +521,7 @@ function update(dt){
   const tgt=bestTarget();
   if(tgt){
     aimAngle=lerp(aimAngle,Math.atan2(tgt.y-PIVOT_Y,tgt.x-TOWER_X),0.18);
-    if(fireCd<=0){fireCd=1/(Modes[modeIdx].rate*rateMult);shoot(tgt.x,tgt.y);}
+    if(fireCd<=0){fireCd=1/(Modes[modeIdx].rate*rateMult*(swarming?3:1));shoot(tgt.x,tgt.y);}
   }
 
   // Projectiles
@@ -514,7 +559,7 @@ function update(dt){
           if(e.t==='boss')flashScreen('#ff2200',0.22);
           else if(e.t==='bacteria')flashScreen('#cc8800',0.10);
           combo++;comboTimer=2.2;comboMult=1+Math.min(combo*0.1,1.0);
-          const earned=Math.round(e.reward*comboMult);
+          const earned=Math.round(e.reward*comboMult*(goldRushTimer>0?5:1));
           gold+=earned;score+=earned;
           if(combo>=3){floater(e.x,e.y-32,`${combo}x COMBO!`,'#ffdd00');}
           else floater(e.x,e.y-10,`+${earned}💰`,C.neonGold);
@@ -565,7 +610,7 @@ function update(dt){
 
   if(queues.every(q=>q.rem<=0)&&enemies.length===0){
     gs='wave_clear';clearTimer=6+Math.floor(waveIdx/3)*2;snd_wave_clear();genShop();
-    if(waveIdx>0&&waveIdx%3===0&&lives<3){lives++;floater(W/2,WATER_Y+40,'❤ EXTRA LIFE!','#ff6655');}
+    if(waveIdx>0&&waveIdx%4===0&&lives<5){lives++;floater(W/2,WATER_Y+40,'❤ EXTRA LIFE!','#ff6655');}
   }
 }
 
@@ -1118,7 +1163,7 @@ function drawHUD(){
   // Lives
   cx.textAlign='right';cx.font='bold 13px JetBrains Mono';
   cx.fillStyle=lives>1?'#ff6655':'#ff2222';
-  cx.fillText('❤'.repeat(lives)+'🖤'.repeat(Math.max(0,3-lives)),W-8,26,110);
+  cx.fillText('❤'.repeat(lives)+'🖤'.repeat(Math.max(0,5-lives)),W-8,26,110);
   // Gold
   cx.fillStyle=C.neonGold;cx.font='bold 15px Orbitron,Arial';cx.textAlign='right';
   cx.fillText(`${gold}💰`,W-8,44,100);
@@ -1138,7 +1183,8 @@ function drawHUD(){
   }
   rRect(px,py,pw,ph,4,null,'#550000',1.5);
   cx.fillStyle='rgba(255,160,80,0.92)';cx.font='bold 9px JetBrains Mono,monospace';cx.textAlign='center';
-  cx.fillText(`💀 PRESSURE  ${Math.round(pressure)}%`,W/2,py+10);
+  const _buffs=(swarming?`⚡${swarmTimer.toFixed(1)}s `:'')+(goldRushTimer>0?`💰${goldRushTimer.toFixed(0)}s`:'');
+  cx.fillText(_buffs||`💀 PRESSURE  ${Math.round(pressure)}%`,W/2,py+10,pw-4);
 
   // Vertical pressure bar (left side)
   {
@@ -1260,7 +1306,7 @@ function drawChapterClear(){
   cx.fillStyle=C.textMuted;cx.font='13px JetBrains Mono';
   cx.fillText(`Score: ${score}`,W/2,H/2+10);
   cx.fillText(`Lives: ${lives}/3`,W/2,H/2+32);
-  if(currentChapter<2){
+  if(currentChapter<5){
     const next=CHAPS[currentChapter+1];
     cx.fillStyle='#886644';cx.font='11px JetBrains Mono';
     cx.fillText(`${next.name} unlocked!`,W/2,H/2+58,280);
@@ -1373,9 +1419,12 @@ function drawGameOver(){
 
 // ── CHAPTER SELECT ────────────────────────────────────────────────────────────
 const CHAPS=[
-  {n:1,name:'THE SEWERS',    sub:'Waves 1-3 · Starter',sw:0,clr:'#3a7020',req:0},
-  {n:2,name:'PUBLIC TOILET', sub:'Waves 4-6 · Harder', sw:3,clr:'#8a6010',req:3},
-  {n:3,name:'BIO LAB',       sub:'Waves 7-9 · Brutal', sw:6,clr:'#106050',req:6},
+  {n:1,name:'THE SEWERS',      sub:'Waves 1-3',  sw:0,  clr:'#3a7020',req:0},
+  {n:2,name:'PUBLIC TOILET',   sub:'Waves 4-6',  sw:3,  clr:'#8a6010',req:3},
+  {n:3,name:'BIO LAB',         sub:'Waves 7-9',  sw:6,  clr:'#106050',req:6},
+  {n:4,name:'MUTANT COLLECTOR',sub:'Waves 10-12',sw:9,  clr:'#205870',req:9},
+  {n:5,name:'INFERNAL DRAIN',  sub:'Waves 13-15',sw:12, clr:'#882010',req:12},
+  {n:6,name:'FINAL FLUSH',     sub:'Waves 16-18',sw:15, clr:'#660080',req:15},
 ];
 function drawChapterSelect(){
   drawBg();
@@ -1389,32 +1438,29 @@ function drawChapterSelect(){
   const unlocked=[true,(meta.bw||0)>=3,(meta.bw||0)>=6];
   const cH=118,cY0=WATER_Y+74;
 
+  // 2-column grid: 3 rows × 2 cols
+  const cW=(W-54)/2,cH2=86,cX=[18,W/2+3];
   CHAPS.forEach((ch,i)=>{
-    const cy=cY0+i*(cH+8),locked=!unlocked[i];
-    const bclr=locked?'rgba(10,4,0,0.8)':'rgba(14,6,0,0.95)';
-    const sclr=locked?'#332211':ch.clr;
-    rRect(18,cy,W-36,cH,12,bclr,sclr,locked?1.5:2.5);
-
+    const col=i%2,row=Math.floor(i/2);
+    const cx0=cX[col],cy=cY0+row*(cH2+8),locked=!unlocked[i];
+    rRect(cx0,cy,cW,cH2,10,locked?'rgba(10,4,0,0.75)':'rgba(14,6,0,0.95)',locked?'#332211':ch.clr,locked?1:2);
     if(locked){
-      cx.fillStyle='#997755';cx.font='bold 14px Orbitron,Arial';cx.textAlign='center';
-      cx.fillText('LOCKED',W/2,cy+44,W-60);
-      cx.fillStyle='#775533';cx.font='11px JetBrains Mono';
-      cx.fillText(`Reach wave ${ch.req+1} to unlock`,W/2,cy+66,W-60);
+      cx.fillStyle='#775533';cx.font='bold 11px Orbitron,Arial';cx.textAlign='center';
+      cx.fillText('LOCKED',cx0+cW/2,cy+36,cW-8);
+      cx.fillStyle='#553322';cx.font='8px JetBrains Mono';
+      cx.fillText(`Wave ${ch.req+1}+`,cx0+cW/2,cy+52,cW-8);
     } else {
-      // Chapter badge
-      cx.fillStyle=ch.clr;cx.font='bold 9px Orbitron,Arial';cx.textAlign='left';
-      cx.fillText(`CHAPTER ${ch.n}`,30,cy+22,100);
-      cx.fillStyle=C.neonGold;cx.font='bold 20px Orbitron,Arial';
-      cx.fillText(ch.name,30,cy+48,W-130);
-      cx.fillStyle=C.textMuted;cx.font='11px JetBrains Mono';
-      cx.fillText(ch.sub,30,cy+66,W-130);
-      // Per-chapter best
+      cx.fillStyle=ch.clr;cx.font='bold 8px Orbitron,Arial';cx.textAlign='left';
+      cx.fillText(`CH.${ch.n}`,cx0+8,cy+16,60);
+      cx.fillStyle=C.neonGold;cx.font='bold 12px Orbitron,Arial';
+      cx.fillText(ch.name,cx0+8,cy+34,cW-16);
+      cx.fillStyle=C.textMuted;cx.font='9px JetBrains Mono';
+      cx.fillText(ch.sub,cx0+8,cy+50,cW-16);
       const cb=meta[`ch${ch.n}_best`];
-      if(cb){cx.fillStyle='#553322';cx.font='9px JetBrains Mono';cx.fillText(`Best: W${(cb.w||0)+1} · ${cb.s||0}💩`,30,cy+82,W-130);}
-      // Play button
-      rRect(W-118,cy+cH-50,96,36,8,'#6a2200','#ff4400',2);
-      cx.fillStyle=C.neonGold;cx.font='bold 14px Orbitron,Arial';cx.textAlign='center';
-      cx.fillText('▶ PLAY',W-70,cy+cH-27,86);
+      if(cb){cx.fillStyle='#553322';cx.font='8px JetBrains Mono';cx.fillText(`★W${(cb.w||0)+1}·${cb.s||0}`,cx0+8,cy+64,cW-16);}
+      rRect(cx0+cW-54,cy+cH2-32,48,26,6,'#6a2200','#ff4400',1.5);
+      cx.fillStyle=C.neonGold;cx.font='bold 11px Orbitron,Arial';cx.textAlign='center';
+      cx.fillText('▶',cx0+cW-30,cy+cH2-14);
     }
   });
 
@@ -1491,12 +1537,12 @@ function loop(ts){
     panels=panels.filter(p=>p.life>0);
     if(clearTimer<=0){
       const nextIdx=waveIdx+1;
-      if([2,5,8].includes(waveIdx)){
-        // Chapter complete — save progress + check unlocks
+      if([2,5,8,11,14,17].includes(waveIdx)){
         const m=loadMeta();
-        const wasUnlocked=[true,(m.bw||0)>=3,(m.bw||0)>=6];
+        const reqs=[3,6,9,12,15];
+        const wasUnlocked=reqs.map(r=>(m.bw||0)>=r);
         m.bw=Math.max(m.bw||0,nextIdx);saveMeta(m);
-        [3,6].forEach((req,i)=>{if(!wasUnlocked[i+1]&&m.bw>=req)toast(`${CHAPS[i+1].name} UNLOCKED!`,'#ffdd55');});
+        reqs.forEach((req,i)=>{if(!wasUnlocked[i]&&m.bw>=req)toast(`${CHAPS[i+1].name} UNLOCKED!`,'#ffdd55');});
         chapterClearTimer=5;gs='chapter_clear';stopDrone();
       } else if(nextIdx<WD.length&&WD[nextIdx].some(g=>g.t==='boss')){
         bossWarnTimer=2.5;gs='boss_warn';
@@ -1550,12 +1596,13 @@ function onDown(cx2,cy2){
     return;
   }
   if(gs==='chapter_select'){
-    const meta=loadMeta(),unlocked=[true,(meta.bw||0)>=3,(meta.bw||0)>=6];
-    const cH=118,cY0=WATER_Y+74;
+    const meta=loadMeta(),unlocked=[true,...[3,6,9,12,15].map(r=>(meta.bw||0)>=r)];
+    const cW=(W-54)/2,cH2=86,cX=[18,W/2+3],cY0=WATER_Y+74;
     for(let i=0;i<CHAPS.length;i++){
       if(!unlocked[i])continue;
-      const cy=cY0+i*(cH+8);
-      if(p.x>=18&&p.x<=W-18&&p.y>=cy&&p.y<=cy+cH){startGame(CHAPS[i].sw);return;}
+      const col=i%2,row=Math.floor(i/2);
+      const cx0=cX[col],cy=cY0+row*(cH2+8);
+      if(p.x>=cx0&&p.x<=cx0+cW&&p.y>=cy&&p.y<=cy+cH2){startGame(CHAPS[i].sw);return;}
     }
     gs='menu'; return;
   }
@@ -1640,7 +1687,7 @@ cv.addEventListener('touchend',  e=>{e.preventDefault();onUp();},{passive:false}
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 function startGame(startWv=0){
-  currentChapter=[0,3,6].indexOf(startWv); if(currentChapter<0)currentChapter=0;
+  currentChapter=CHAPS.findIndex(c=>c.sw===startWv); if(currentChapter<0)currentChapter=0;
   enemies=[];projs=[];parts=[];floaters=[];panels=[];rings=[];dmgNums=[];screenFlash=0;
   pressure=0;gold=0;score=0;
   modeIdx=0;fireCd=0;
@@ -1649,7 +1696,8 @@ function startGame(startWv=0){
   towers=[];ultIdx=0;lastUlt=0;lives=3;
   shopOffers=[];dmgMult=1;rateMult=1;splashMult=1;
   combo=0;comboTimer=0;comboMult=1;
-  bossWarnTimer=0;chapterClearTimer=0;toasts=[];stopDrone();
+  bossWarnTimer=0;chapterClearTimer=0;toasts=[];
+  swarming=false;swarmTimer=0;goldRushTimer=0;stopDrone();
   shakeT=0;shakeI=0;vigA=0;
   ultActive=false;ultTimer=0;
   gs='playing';startWave(startWv);startDrone();
