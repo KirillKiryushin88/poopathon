@@ -20,6 +20,8 @@ PlatformBridge="*res://src/autoloads/platform_bridge.gd"
 AudioRouter="*res://src/autoloads/audio_router.gd"
 SceneManager="*res://src/autoloads/scene_manager.gd"
 CombatEventBus="*res://src/autoloads/combat_event_bus.gd"
+AdsBridge="*res://src/autoloads/ads_bridge.gd"
+BillingBridge="*res://src/autoloads/billing_bridge.gd"
 
 [display]
 
