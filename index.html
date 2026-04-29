@@ -272,7 +272,7 @@ function getChapter(w){
 
 // ── IMPACT VFX ────────────────────────────────────────────────────────────────
 let rings=[],dmgNums=[],screenFlash=0,screenFlashClr='#ffffff';
-function addRing(x,y,clr,maxR=60,speed=200){rings.push({x,y,clr,r:6,maxR,speed,a:0.9});}
+function addRing(x,y,clr,maxR=60,speed=200){if(rings.length<24)rings.push({x,y,clr,r:6,maxR,speed,a:0.9});}
 function dmgNum(x,y,txt,clr='#ff4444'){dmgNums.push({x,y,txt,clr,vy:-55,life:1,dec:1.8});}
 function flashScreen(clr,strength=0.18){screenFlash=Math.max(screenFlash,strength);screenFlashClr=clr;}
 function toast(txt,clr='#ffdd55'){toasts.push({text:txt,timer:3.5,clr});}
@@ -319,6 +319,7 @@ function drawVFX(){
 
 // ── PARTICLES ─────────────────────────────────────────────────────────────────
 function burst(x,y,clr,n,spd,sz) {
+  if(parts.length>180)return;
   for(let i=0;i<n;i++){
     const a=rnd(0,Math.PI*2),s=rnd(spd*0.4,spd);
     parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,r:rnd(sz*0.5,sz),clr,life:1,dec:rnd(1.8,3.2)});
@@ -735,8 +736,8 @@ function drawBg(){
   rightGr.addColorStop(1,'rgba(0,0,0,0)');
   cx.fillStyle=rightGr; cx.fillRect(W-28,FIELD_TOP,28,FIELD_BOT-FIELD_TOP);
   // Subtle chapter atmosphere tint
-  const _ct=['rgba(0,16,0,0.07)','rgba(16,12,0,0.07)','rgba(0,12,16,0.07)'];
-  cx.fillStyle=_ct[Math.min(2,getChapter(waveIdx).n-1)];
+  const _ct=['rgba(0,16,0,0.07)','rgba(16,12,0,0.07)','rgba(0,12,16,0.07)','rgba(0,8,20,0.08)','rgba(22,4,0,0.09)','rgba(14,0,22,0.09)'];
+  cx.fillStyle=_ct[Math.min(5,getChapter(waveIdx).n-1)];
   cx.fillRect(0,FIELD_TOP,W,FIELD_BOT-FIELD_TOP);
 }
 
@@ -1155,15 +1156,15 @@ function drawHUD(){
 
   // Center: score + enemies
   const alive=enemies.length+queues.reduce((s,q)=>s+q.rem,0);
-  cx.fillStyle=C.neonGold;cx.font='bold 15px Orbitron,Arial';cx.textAlign='center';
-  cx.fillText(score,W/2,22,100);
-  cx.fillStyle=combo>1?'#ffdd00':'#ff6633';cx.font='bold 11px JetBrains Mono';
-  cx.fillText(combo>1?`${combo}x COMBO · 👾${alive}`:`👾 ${alive}`,W/2,38,160);
+  cx.fillStyle=C.neonGold;cx.font='bold 14px Orbitron,Arial';cx.textAlign='center';
+  cx.fillText(`${score} PTS`,W/2,20,120);
+  cx.fillStyle=combo>1?'#ffdd00':'#ff6633';cx.font='bold 10px JetBrains Mono';
+  cx.fillText(combo>1?`${combo}x COMBO · ${alive} left`:`${alive} enemies`,W/2,36,150);
 
   // Lives
   cx.textAlign='right';cx.font='bold 13px JetBrains Mono';
   cx.fillStyle=lives>1?'#ff6655':'#ff2222';
-  cx.fillText('❤'.repeat(lives)+'🖤'.repeat(Math.max(0,5-lives)),W-8,26,110);
+  cx.fillText(`❤ ${lives}/5`,W-8,26,80);
   // Gold
   cx.fillStyle=C.neonGold;cx.font='bold 15px Orbitron,Arial';cx.textAlign='right';
   cx.fillText(`${gold}💰`,W-8,44,100);
@@ -1331,8 +1332,9 @@ function drawWaveClear(){
       const lv=tw.level||0;
       cx.font='16px Arial';cx.textAlign='center';cx.fillText(tt.em,s.x,s.y-4);
       cx.fillStyle=tt.clr;cx.font='bold 7px Arial';cx.fillText('★'.repeat(lv+1),s.x,s.y+7);
-      cx.fillStyle=lv<2?'#88cc44':'#888888';cx.font='7px JetBrains Mono';
-      cx.fillText(lv<2?'UP:'+tt.cost[lv+1]+'g':'MAX',s.x,s.y+18);
+      cx.fillStyle=lv<2?'#88cc44':lv===0?'#44aaff':'#888888';cx.font='7px JetBrains Mono';
+      const _hint=lv<2?'UP:'+tt.cost[lv+1]+'g':lv===0?'→'+TT[(tw.type+1)%TT.length].name:'MAX';
+      cx.fillText(_hint,s.x,s.y+18);
       cx.fillStyle='#446622';cx.font='6px JetBrains Mono';
       const totalSpent=tt.cost.slice(0,lv+1).reduce((a,b)=>a+b,0);
       cx.fillText('SELL:'+Math.floor(totalSpent*0.5)+'g',s.x,s.y+27);
@@ -1435,8 +1437,8 @@ function drawChapterSelect(){
   cx.fillText('SELECT CHAPTER',W/2,WATER_Y+46,W-40);
 
   const meta=loadMeta();
-  const unlocked=[true,(meta.bw||0)>=3,(meta.bw||0)>=6];
-  const cH=118,cY0=WATER_Y+74;
+  const unlocked=[true,...[3,6,9,12,15].map(r=>(meta.bw||0)>=r)];
+  const cY0=WATER_Y+74;
 
   // 2-column grid: 3 rows × 2 cols
   const cW=(W-54)/2,cH2=86,cX=[18,W/2+3];
@@ -1635,8 +1637,17 @@ function onDown(cx2,cy2){
         const idx=towers.findIndex(t=>t.slot===si);
         if(idx>=0){
           const tw=towers[idx],tt=TT[tw.type],lv=tw.level||0;
-          if(lv<2&&gold>=tt.cost[lv+1]){gold-=tt.cost[lv+1];tw.level=(lv+1);tw.cd=0;}
-          else{
+          if(lv<2&&gold>=tt.cost[lv+1]){
+            // Upgrade level
+            gold-=tt.cost[lv+1];tw.level=lv+1;tw.cd=0;
+          } else if(lv===0){
+            // Cycle type (refund current base, pay next base)
+            const nextType=(tw.type+1)%TT.length;
+            const diff=TT[nextType].cost[0]-tt.cost[0];
+            if(diff<=gold){gold-=diff;tw.type=nextType;tw.cd=0;}
+            else{gold+=Math.floor(tt.cost[0]*0.5);towers.splice(idx,1);}
+          } else {
+            // Max level or can't afford → sell
             const spent=tt.cost.slice(0,lv+1).reduce((a,b)=>a+b,0);
             gold+=Math.floor(spent*0.5);towers.splice(idx,1);
           }
