@@ -1,0 +1,47 @@
+; Godot Project Configuration — Apocabutt: Defense of the Throne
+; Engine: Godot 4.6 | Target: Android/iOS portrait | Renderer: Mobile
+
+config_version=5
+
+[application]
+
+config/name="Apocabutt: Defense of the Throne"
+config/description="Жопокалипсис: Оборона Трона"
+run/main_scene="res://src/main.tscn"
+config/features=PackedStringArray("4.6", "Mobile")
+
+[autoload]
+
+GameSession="*res://src/autoloads/game_session.gd"
+MetaProgression="*res://src/autoloads/meta_progression.gd"
+EconomyService="*res://src/autoloads/economy_service.gd"
+SaveService="*res://src/autoloads/save_service.gd"
+PlatformBridge="*res://src/autoloads/platform_bridge.gd"
+AudioRouter="*res://src/autoloads/audio_router.gd"
+SceneManager="*res://src/autoloads/scene_manager.gd"
+CombatEventBus="*res://src/autoloads/combat_event_bus.gd"
+
+[display]
+
+window/size/viewport_width=390
+window/size/viewport_height=844
+window/size/resizable=false
+window/handheld/orientation="portrait"
+
+[input_devices]
+
+pointing/android/enable_long_press_as_right_click=false
+pointing/android/enable_pan_and_scale_gestures=true
+
+[rendering]
+
+renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true
+
+[layer_names]
+
+2d_physics/layer_1="world"
+2d_physics/layer_2="enemies"
+2d_physics/layer_3="projectiles"
+2d_physics/layer_4="towers"
