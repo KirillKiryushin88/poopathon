@@ -1,0 +1,65 @@
+[gd_scene format=3]
+
+; HUD — in-game overlay
+; Attach hud_controller.gd to HudController node.
+; Adjust anchors and positions in Godot editor for portrait 390×844.
+
+[node name="HudController" type="CanvasLayer"]
+script = ExtResource("res://src/ui/hud_controller.gd")
+
+[node name="TopBar" type="HBoxContainer" parent="."]
+anchors_preset = 5
+anchor_right = 1.0
+offset_bottom = 52.0
+
+[node name="WaveLabel" type="Label" parent="TopBar"]
+text = "WAVE 1"
+horizontal_alignment = 0
+size_flags_horizontal = 3
+
+[node name="LivesLabel" type="Label" parent="TopBar"]
+text = "❤ 3 / 3"
+horizontal_alignment = 2
+
+[node name="PressureRow" type="HBoxContainer" parent="."]
+anchors_preset = 5
+anchor_right = 1.0
+offset_top = 54.0
+offset_bottom = 78.0
+
+[node name="PressureLabel" type="Label" parent="PressureRow"]
+text = "PRESSURE 0%"
+size_flags_horizontal = 0
+
+[node name="PressureBar" type="ProgressBar" parent="PressureRow"]
+max_value = 100.0
+value = 0.0
+size_flags_horizontal = 3
+
+[node name="UltButton" type="Button" parent="."]
+anchors_preset = 7
+anchor_left = 0.0
+anchor_top = 1.0
+anchor_right = 0.0
+anchor_bottom = 1.0
+offset_left = 12.0
+offset_top = -100.0
+offset_right = 100.0
+offset_bottom = -12.0
+text = "ULT"
+disabled = true
+
+[node name="WaveBreakPanel" type="PanelContainer" parent="."]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -120.0
+offset_top = -30.0
+offset_right = 120.0
+offset_bottom = 30.0
+
+[node name="BreakTimerLabel" type="Label" parent="WaveBreakPanel"]
+text = "NEXT WAVE IN 12s"
+horizontal_alignment = 1

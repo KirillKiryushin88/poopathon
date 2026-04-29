@@ -1,0 +1,9 @@
+[gd_resource type="EnemyData" format=3]
+
+[resource]
+enemy_name = "Virus"
+base_hp = 14.0
+base_speed = 150.0
+base_armor = 0.0
+throne_damage = 7.0
+soft_reward = 3

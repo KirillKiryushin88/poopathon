@@ -1,0 +1,9 @@
+[gd_resource type="EnemyData" format=3]
+
+[resource]
+enemy_name = "Slime"
+base_hp = 80.0
+base_speed = 35.0
+base_armor = 0.0
+throne_damage = 12.0
+soft_reward = 12

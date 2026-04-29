@@ -1,0 +1,10 @@
+[gd_resource type="TowerFireModeData" format=3]
+
+[resource]
+damage = 20.0
+fire_interval = 2.4
+pierce_count = 0
+stagger_force = 0.0
+range = 200.0
+cone_angle_deg = 60.0
+debuff_duration = 3.0

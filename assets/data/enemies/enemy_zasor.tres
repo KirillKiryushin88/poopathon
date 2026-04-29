@@ -1,0 +1,9 @@
+[gd_resource type="EnemyData" format=3]
+
+[resource]
+enemy_name = "Засор (Blockage)"
+base_hp = 600.0
+base_speed = 18.0
+base_armor = 0.2
+throne_damage = 40.0
+soft_reward = 150

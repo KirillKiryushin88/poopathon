@@ -1,0 +1,9 @@
+[gd_resource type="EnemyData" format=3]
+
+[resource]
+enemy_name = "Bacteria"
+base_hp = 155.0
+base_speed = 26.0
+base_armor = 0.45
+throne_damage = 20.0
+soft_reward = 25

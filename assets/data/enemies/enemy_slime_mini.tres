@@ -1,0 +1,9 @@
+[gd_resource type="EnemyData" format=3]
+
+[resource]
+enemy_name = "Mini-Slime"
+base_hp = 22.0
+base_speed = 52.0
+base_armor = 0.0
+throne_damage = 5.0
+soft_reward = 4

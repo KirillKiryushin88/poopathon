@@ -1,0 +1,41 @@
+[gd_scene format=3]
+
+; Chapter 1 — Sewers, 4 waves (3 standard + Засор boss)
+; Open in Godot editor to:
+;   1. Draw the Path2D curve (enemy route bottom-of-screen → central throne)
+;   2. Position TowerSlot nodes at the 4 altar slot locations
+;   3. Set WaveManager.wave_configs array to the ch1_wave_*.tres assets
+;   4. Position CentralTower at the throne location (portrait center, ~y=120)
+
+[node name="Level1" type="Node2D"]
+
+[node name="WaveManager" type="Node" parent="."]
+script = ExtResource("res://src/gameplay/wave_manager.gd")
+
+[node name="UltimateSystem" type="Node" parent="."]
+script = ExtResource("res://src/gameplay/ultimate_system.gd")
+
+[node name="SpawnPath" type="Path2D" parent="."]
+
+[node name="Projectiles" type="Node2D" parent="."]
+
+[node name="TowerSlots" type="Node2D" parent="."]
+
+[node name="Slot0" type="Node2D" parent="TowerSlots"]
+script = ExtResource("res://src/gameplay/tower_slot.gd")
+slot_id = 0
+
+[node name="Slot1" type="Node2D" parent="TowerSlots"]
+script = ExtResource("res://src/gameplay/tower_slot.gd")
+slot_id = 1
+
+[node name="Slot2" type="Node2D" parent="TowerSlots"]
+script = ExtResource("res://src/gameplay/tower_slot.gd")
+slot_id = 2
+
+[node name="Slot3" type="Node2D" parent="TowerSlots"]
+script = ExtResource("res://src/gameplay/tower_slot.gd")
+slot_id = 3
+
+[node name="CentralTower" type="Node2D" parent="."]
+script = ExtResource("res://src/gameplay/central_tower_controller.gd")

@@ -1,0 +1,8 @@
+[gd_resource type="WaveConfig" format=3]
+
+[resource]
+wave_index = 3
+enemy_spawns = [{"count": 1, "interval": 30.0}, {"count": 6, "interval": 0.9}]
+soft_reward = 200
+is_boss_wave = true
+boss_scene = "res://src/gameplay/enemies/zasor_boss.gd"

@@ -1,0 +1,8 @@
+[gd_resource type="WaveConfig" format=3]
+
+[resource]
+wave_index = 2
+enemy_spawns = [{"count": 6, "interval": 0.8}, {"count": 4, "interval": 1.2}, {"count": 1, "interval": 8.0}]
+soft_reward = 80
+is_boss_wave = false
+boss_scene = ""
