@@ -79,6 +79,10 @@ func _fire_chunk_burst() -> void:
 	proj.global_position = global_position
 	if proj.has_method("launch"):
 		proj.launch(aim_direction, chunk_burst_data)
+	var vfx: VfxManager = Engine.get_singleton("VfxManager") as VfxManager
+	if vfx:
+		vfx.shake(2.5, 0.12)
+		vfx.burst_ring(global_position, Color(0.7, 0.3, 0.05), 28.0, 0.18)
 
 func _fire_auto_diarrhea() -> void:
 	if diarrhea_projectile_scene == null:
@@ -90,13 +94,18 @@ func _fire_auto_diarrhea() -> void:
 		proj.launch(aim_direction, auto_diarrhea_data)
 
 func _fire_gas_cone() -> void:
-	# Gas cone: fan-shaped overlap check using area detection
 	var cone_area: Area2D = _create_cone_area()
 	get_parent().add_child(cone_area)
 	cone_area.global_position = global_position
-	# Enemies in cone receive stench debuff via their own signal handler
 	await get_tree().process_frame
+	for body: Node in cone_area.get_overlapping_bodies():
+		if body is EnemyBase:
+			(body as EnemyBase).apply_stench(3.0)
 	cone_area.queue_free()
+	var vfx: VfxManager = Engine.get_singleton("VfxManager") as VfxManager
+	if vfx:
+		vfx.shake(1.5, 0.2)
+		vfx.burst_ring(global_position, Color(0.2, 0.85, 0.1), 80.0, 0.45)
 
 func _create_cone_area() -> Area2D:
 	var area: Area2D = Area2D.new()

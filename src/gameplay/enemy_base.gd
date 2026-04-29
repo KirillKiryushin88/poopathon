@@ -94,9 +94,13 @@ func _die() -> void:
 		return
 	_is_dead = true
 	remove_from_group("enemies")
-	var bus: Node = Engine.get_singleton("CombatEventBus")
+	var bus: CombatEventBus = Engine.get_singleton("CombatEventBus") as CombatEventBus
 	if bus:
 		bus.enemy_died.emit(self, global_position)
+	var vfx: VfxManager = Engine.get_singleton("VfxManager") as VfxManager
+	if vfx:
+		vfx.burst_ring(global_position, Color.WHITE, 40.0, 0.28)
+		vfx.shake(3.0, 0.15)
 	died.emit(self, global_position)
 	queue_free()
 

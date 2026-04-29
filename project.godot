@@ -22,6 +22,7 @@ SceneManager="*res://src/autoloads/scene_manager.gd"
 CombatEventBus="*res://src/autoloads/combat_event_bus.gd"
 AdsBridge="*res://src/autoloads/ads_bridge.gd"
 BillingBridge="*res://src/autoloads/billing_bridge.gd"
+VfxManager="*res://src/vfx/vfx_manager.gd"
 
 [display]
 
